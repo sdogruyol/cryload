@@ -1,11 +1,12 @@
 # cryload
 
-HTTP benchmarking tool writen in [Crystal](http:://www.crystal-lang.org)
+HTTP benchmarking tool writen in [Crystal](http://crystal-lang.org/)
 
 ## Installation
 
-```crystal
-  git clone https://github.com/Sdogruyol/cryload.git && cd cryload
+```
+git clone https://github.com/Sdogruyol/cryload.git && cd cryload
+crystal build src/cryload.cr --release
 ```
 
 ## Usage
