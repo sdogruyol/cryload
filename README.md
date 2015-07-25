@@ -1,28 +1,26 @@
 # cryload
 
-TODO: Write a description here for library
+HTTP benchmarking tool writen in [Crystal](http:://www.crystal-lang.org)
 
 ## Installation
 
-Add it to `Projectfile`
-
 ```crystal
-deps do
-  github "[your-github-name]/cryload"
-end
+  git clone https://github.com/Sdogruyol/cryload.git && cd cryload
 ```
 
 ## Usage
 
-```crystal
-require "cryload"
 ```
-
-TODO: Write usage here for library
+./cryload http://wwww.example.com
+```
 
 ## Development
 
-TODO: Write instructions for development
+TODO:
+
+1. Connection options
+2. Duration
+3. Pretty output
 
 ## Contributing
 
