@@ -24,5 +24,9 @@ module Cryload
     def request_per_second
       1000 / average_request_time
     end
+
+    def total_request_time_in_seconds
+      @request_times.sum / 1000
+    end
   end
 end

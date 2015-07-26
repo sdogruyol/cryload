@@ -3,7 +3,7 @@ require "http"
 
 module Cryload
   class LoadGenerator
-    def initialize(@host, @number=1000)
+    def initialize(@host, @number)
       @stats = Stats.new
       ch = generate_request_channel
       loop do
@@ -30,13 +30,26 @@ module Cryload
 
     def check
       if @stats.total_request_count == @number
-        p "Average time taken per request: #{@stats.average_request_time} ms"
+        p "Average time taken per request: #{@stats.average_request_time.round(3)} ms"
         p "Request per second: #{@stats.request_per_second}"
         p "Total request made: #{@stats.total_request_count}"
+        p "Total time taken: #{@stats.total_request_time_in_seconds} seconds"
         exit
       end
     end
   end
 end
 
-Cryload::LoadGenerator.new ARGV[0]
+if ARGV.empty?
+  p "You need to set a host!"
+  exit
+else
+  host = ARGV.shift
+  request_count = unless ARGV.empty?
+    ARGV.shift
+  else
+    1000
+  end
+  p "Preparing to make it CRY for #{request_count} requests!"
+  Cryload::LoadGenerator.new host, request_count.to_i
+end
