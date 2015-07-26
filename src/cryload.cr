@@ -31,6 +31,7 @@ module Cryload
     def check
       if @stats.total_request_count == @number
         p "Average time taken per request: #{@stats.average_request_time} ms"
+        p "Request per second: #{@stats.request_per_second}"
         p "Total request made: #{@stats.total_request_count}"
         exit
       end
