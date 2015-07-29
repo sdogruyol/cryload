@@ -4,10 +4,10 @@ require "http"
 module Cryload
   class LoadGenerator
     def initialize(@host, @number)
-      @stats = Stats.new
+      @stats = Stats.new @number
       ch = generate_request_channel
       loop do
-        check
+        check_log
         ch.receive
         @stats.increase_total_request_count
       end
@@ -28,14 +28,8 @@ module Cryload
       channel
     end
 
-    def check
-      if @stats.total_request_count == @number
-        p "Average time taken per request: #{@stats.average_request_time.round(3)} ms"
-        p "Request per second: #{@stats.request_per_second}"
-        p "Total request made: #{@stats.total_request_count}"
-        p "Total time taken: #{@stats.total_request_time_in_seconds} seconds"
-        exit
-      end
+    def check_log
+      Logger.new @stats
     end
   end
 end

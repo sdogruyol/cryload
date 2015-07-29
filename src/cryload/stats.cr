@@ -2,9 +2,12 @@ module Cryload
   # Stats holder for the benchmark
   class Stats
     getter :total_request_count
+    getter :request_number
+    getter :ongoing_check_number
 
-    def initialize
+    def initialize(@request_number)
       @total_request_count = 0
+      @ongoing_check_number = @request_number / 10
       @request_times = [] of Float64
     end
 
