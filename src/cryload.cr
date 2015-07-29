@@ -14,7 +14,7 @@ module Cryload
     end
 
     def generate_request_channel()
-      channel = Channel(Int32).new
+      channel = Channel(Nil).new
       uri = URI.parse @host
       full_path = uri.full_path
       client = HTTP::Client.new uri.host.not_nil!, port: uri.port
@@ -25,7 +25,7 @@ module Cryload
           end_time = Time.now
           time_taken_in_ms = (end_time - start_time).to_f * 1000.0
           @stats.add_to_request_times time_taken_in_ms
-          channel.send 0
+          channel.send nil
         end
       end
       channel
