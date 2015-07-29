@@ -15,10 +15,13 @@ module Cryload
 
     def generate_request_channel()
       channel = Channel(Int32).new
+      uri = URI.parse @host
+      full_path = uri.full_path
+      client = HTTP::Client.new uri.host.not_nil!, port: uri.port
       spawn do
         loop do
           start_time = Time.now
-          HTTP::Client.get @host
+          client.get full_path
           end_time = Time.now
           time_taken_in_ms = (end_time - start_time).to_f * 1000.0
           @stats.add_to_request_times time_taken_in_ms
