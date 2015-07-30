@@ -17,11 +17,16 @@ crystal build src/cryload.cr --release
 
 ## Development
 
+DONE:
+
+1. Request number
+2. Pretty output
+3. Performance
+
 TODO:
 
-1. Connection options
-2. Duration
-3. Pretty output
+1. Duration
+3. Kill signal handling
 
 ## Contributing
 
