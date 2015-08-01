@@ -19,6 +19,14 @@ module Cryload
       @request_times << time
     end
 
+    def min_request_time
+      @request_times.min
+    end
+
+    def max_request_time
+      @request_times.max
+    end
+
     def average_request_time
       total_request_time = @request_times.sum
       total_request_time / total_request_count

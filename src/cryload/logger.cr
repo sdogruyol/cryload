@@ -15,6 +15,8 @@ module Cryload
 
     def log_final
       p "COMPLETED"
+      p "Minimum time taken per request #{@stats.min_request_time.round(3)} ms"
+      p "Maximum time taken per request #{@stats.max_request_time.round(3)} ms"
       p "Average time taken per request: #{@stats.average_request_time.round(3)} ms"
       p "Request per second: #{@stats.request_per_second}"
       p "Total request made: #{@stats.total_request_count}"
