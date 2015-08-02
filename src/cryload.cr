@@ -60,8 +60,6 @@ OptionParser.parse(ARGV) do |opts|
   end
 end.parse!
 
-puts options
-
 if options.has_key?(:server) && options.has_key?(:requests)
   puts "Preparing to make it CRY for #{options[:requests]} requests!".colorize(:green)
   Cryload::LoadGenerator.new options[:server], options[:requests].to_i
