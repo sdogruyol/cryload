@@ -40,6 +40,7 @@ module Cryload
 end
 
 options = {} of Symbol => String
+options[:requests] = "1000"
 OptionParser.parse(ARGV) do |opts|
   opts.banner = "Usage: ./cryload [options]"
   
@@ -47,7 +48,7 @@ OptionParser.parse(ARGV) do |opts|
     options[:server] = v
   end
 
-  opts.on("-r REQUESTS", "--requests REQUESTS", "Number of requests to make") do |v|
+  opts.on("-n NUMBERS", "--numbers NUMBERS", "Number of requests to make") do |v|
     options[:requests] = v
   end
 
