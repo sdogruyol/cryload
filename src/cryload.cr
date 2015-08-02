@@ -1,6 +1,7 @@
 require "./cryload/*"
 require "http"
 require "colorize"
+require "option_parser"
 
 module Cryload
   class LoadGenerator
@@ -37,17 +38,37 @@ module Cryload
     end
   end
 end
-
-if ARGV.empty?
-  puts "You need to set a host!".colorize(:red)
-  exit
-else
-  host = ARGV.shift
-  request_count = unless ARGV.empty?
-    ARGV.shift
-  else
-    1000
+options = {} of Symbol => String
+options[:requests] = "1000"
+OptionParser.parse(ARGV) do |opts|
+  opts.banner = "Usage: ./cryload [options]"
+  
+  opts.on("-s SERVER", "--server SERVER", "Target Server") do |v|
+    options[:server] = v
   end
-  puts "Preparing to make it CRY for #{request_count} requests!".colorize(:green)
-  Cryload::LoadGenerator.new host, request_count.to_i
+
+  opts.on("-n NUMBERS", "--numbers NUMBERS", "Number of requests to make") do |v|
+    options[:numbers] = v
+  end
+
+  opts.on("-h", "--help", "Print Help") do |v|
+    puts opts
+  end
+
+  if ARGV.empty?
+    puts opts
+  end
+
+end.parse!
+
+if options.has_key?(:server) && options.has_key?(:numbers)
+  puts "Preparing to make it CRY for #{options[:numbers]} requests!".colorize(:green)
+  Cryload::LoadGenerator.new options[:server], options[:numbers].to_i
+elsif options.has_key?(:server)
+  puts "You have to specify '-n' or '--numbers' flag to indicate the number of requests to make".colorize(:red)
+elsif options.has_key?(:numbers)
+  puts "You have to specify '-s' or '--server' flag to indicate the target server".colorize(:red)
+else
+  puts "You have to specify '-n' and '-s' flags, for help use '-h'".colorize(:red)
 end
+
