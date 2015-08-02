@@ -38,7 +38,6 @@ module Cryload
     end
   end
 end
-
 options = {} of Symbol => String
 options[:requests] = "1000"
 OptionParser.parse(ARGV) do |opts|
