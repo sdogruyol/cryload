@@ -62,13 +62,12 @@ OptionParser.parse(ARGV) do |opts|
 end.parse!
 
 if options.has_key?(:server) && options.has_key?(:numbers)
-  if options[:numbers].to_s.empty?
-    puts "You have to specify the '-n' flag to indicate the number of requests to make!".colorize(:red)
-    STDOUT.flush
-    exit
-  end
   puts "Preparing to make it CRY for #{options[:numbers]} requests!".colorize(:green)
   Cryload::LoadGenerator.new options[:server], options[:numbers].to_i
+elsif options.has_key?(:server)
+  puts "You have to specify '-n' or '--numbers' flag to indicate the number of requests to make".colorize(:red)
+elsif options.has_key?(:numbers)
+  puts "You have to specify '-s' or '--server' flag to indicate the target server".colorize(:red)
 else
   puts "You have to specify '-n' and '-s' flags, for help use '-h'".colorize(:red)
 end
