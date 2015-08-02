@@ -10,9 +10,10 @@ crystal build src/cryload.cr --release
 ```
 
 ## Usage
+You can specify the number of requests after the url. The default request number is 1000.
 
 ```
-./cryload http://wwww.example.com
+./cryload http://wwww.example.com 10000
 ```
 
 ## Development
@@ -22,11 +23,12 @@ DONE:
 1. Request number
 2. Pretty output
 3. Performance
+4. Kill signal handling
 
 TODO:
 
 1. Duration
-3. Kill signal handling
+2. Multithreading
 
 ## Contributing
 
@@ -38,4 +40,4 @@ TODO:
 
 ## Contributors
 
-- [your-github-name](https://github.com/[your-github-name]) Sdogruyol - creator, maintainer
+- [Sdogruyol](https://github.com/[sdogruyol]) Sdogruyol - creator, maintainer
