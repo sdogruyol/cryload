@@ -41,7 +41,7 @@ end
 
 options = {} of Symbol => String
 OptionParser.parse(ARGV) do |opts|
-  opts.banner = "Usage: example.rb [options]"
+  opts.banner = "Usage: ./cryload [options]"
   
   opts.on("-s SERVER", "--server SERVER", "Target Server") do |v|
     options[:server] = v
