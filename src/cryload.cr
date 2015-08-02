@@ -40,14 +40,14 @@ module Cryload
 end
 
 options = {} of Symbol => String
-OptionParser.new do |opts|
+OptionParser.parse(ARGV) do |opts|
   opts.banner = "Usage: example.rb [options]"
   
-  opts.on("-s", "--server", "Target Server") do |v|
+  opts.on("-s SERVER", "--server SERVER", "Target Server") do |v|
     options[:server] = v
   end
 
-  opts.on("-r", "--requests", "Number of requests to make") do |v|
+  opts.on("-r REQUESTS", "--requests REQUESTS", "Number of requests to make") do |v|
     options[:requests] = v
   end
 
@@ -60,6 +60,7 @@ OptionParser.new do |opts|
   end
 end.parse!
 
+puts options
 
 if options.has_key?(:server) && options.has_key?(:requests)
   puts "Preparing to make it CRY for #{options[:requests]} requests!".colorize(:green)
