@@ -1,6 +1,7 @@
 require "./cryload/*"
 require "http"
 require "colorize"
+require "option_parser"
 
 module Cryload
   class LoadGenerator
@@ -38,16 +39,29 @@ module Cryload
   end
 end
 
-if ARGV.empty?
-  puts "You need to set a host!".colorize(:red)
-  exit
-else
-  host = ARGV.shift
-  request_count = unless ARGV.empty?
-    ARGV.shift
-  else
-    1000
+options = {} of Symbol => String
+OptionParser.new do |opts|
+  opts.banner = "Usage: example.rb [options]"
+  
+  opts.on("-s", "--server", "Target Server") do |v|
+    options[:server] = v
   end
-  puts "Preparing to make it CRY for #{request_count} requests!".colorize(:green)
-  Cryload::LoadGenerator.new host, request_count.to_i
+
+  opts.on("-r", "--requests", "Number of requests to make") do |v|
+    options[:requests] = v
+  end
+
+  opts.on("-h", "--help", "Print Help") do |v|
+    puts opts
+  end
+
+  if ARGV.empty?
+    puts opts
+  end
+end.parse!
+
+
+if options.has_key?(:server) && options.has_key?(:requests)
+  puts "Preparing to make it CRY for #{options[:requests]} requests!".colorize(:green)
+  Cryload::LoadGenerator.new options[:server], options[:requests].to_i
 end
