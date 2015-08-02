@@ -49,7 +49,7 @@ OptionParser.parse(ARGV) do |opts|
   end
 
   opts.on("-n NUMBERS", "--numbers NUMBERS", "Number of requests to make") do |v|
-    options[:requests] = v
+    options[:numbers] = v
   end
 
   opts.on("-h", "--help", "Print Help") do |v|
@@ -59,9 +59,17 @@ OptionParser.parse(ARGV) do |opts|
   if ARGV.empty?
     puts opts
   end
+
 end.parse!
 
-if options.has_key?(:server) && options.has_key?(:requests)
-  puts "Preparing to make it CRY for #{options[:requests]} requests!".colorize(:green)
-  Cryload::LoadGenerator.new options[:server], options[:requests].to_i
+if options.has_key?(:server) && options.has_key?(:numbers)
+  if options[:numbers].to_s.empty?
+    puts "You have to specify the '-n' flag to indicate the number of requests to make!".colorize(:red)
+    STDOUT.flush
+    exit
+  end
+  puts "Preparing to make it CRY for #{options[:numbers]} requests!".colorize(:green)
+  Cryload::LoadGenerator.new options[:server], options[:numbers].to_i
+else
+  puts "You have to specify '-n' and '-s' flags, for help use '-h'".colorize(:red)
 end
