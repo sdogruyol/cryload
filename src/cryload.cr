@@ -1,5 +1,6 @@
 require "./cryload/*"
 require "http"
+require "colorize"
 
 module Cryload
   class LoadGenerator
@@ -38,7 +39,7 @@ module Cryload
 end
 
 if ARGV.empty?
-  p "You need to set a host!"
+  puts "You need to set a host!".colorize(:red)
   exit
 else
   host = ARGV.shift
@@ -47,6 +48,6 @@ else
   else
     1000
   end
-  p "Preparing to make it CRY for #{request_count} requests!"
+  puts "Preparing to make it CRY for #{request_count} requests!".colorize(:green)
   Cryload::LoadGenerator.new host, request_count.to_i
 end
