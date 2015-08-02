@@ -2,8 +2,10 @@ module Cryload
   class Logger
 
     def initialize(@stats)
+      setup_trap_signal
       if @stats.total_request_count == @stats.request_number
         log_final
+        exit
       elsif (@stats.total_request_count % @stats.ongoing_check_number == 0 ) && @stats.total_request_count != @stats.request_number && @stats.total_request_count != 0
         log_ongoing
       end
@@ -21,7 +23,13 @@ module Cryload
       p "Request per second: #{@stats.request_per_second}"
       p "Total request made: #{@stats.total_request_count}"
       p "Total time taken: #{@stats.total_request_time_in_seconds} seconds"
-      exit
+    end
+
+    def setup_trap_signal
+      Signal::INT.trap {
+        log_final
+        exit
+      }
     end
 
   end
