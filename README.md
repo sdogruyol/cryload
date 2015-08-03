@@ -13,7 +13,7 @@ crystal build src/cryload.cr --release
 You can specify the number of requests after the url. The default request number is 1000.
 
 ```
-./cryload http://wwww.example.com 10000
+./cryload -s http://wwww.example.com -n 10000
 ```
 
 ## Development
@@ -27,8 +27,7 @@ DONE:
 
 TODO:
 
-1. Duration
-2. Multithreading
+1. Multithreading
 
 ## Contributing
 
