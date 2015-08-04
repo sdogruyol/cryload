@@ -3,16 +3,16 @@ module Cryload
 
     def initialize(@stats)
       setup_trap_signal
-      if @stats.total_request_count == @stats.request_number
+      if @stats.requests.count == @stats.request_number
         log_final
         exit
-      elsif (@stats.total_request_count % @stats.ongoing_check_number == 0 ) && @stats.total_request_count != @stats.request_number && @stats.total_request_count != 0
+      elsif (@stats.requests.count % @stats.ongoing_check_number == 0 ) && @stats.requests.count != @stats.request_number && @stats.requests.count != 0
         log_ongoing
       end
     end
 
     def log_ongoing
-      puts "Total request made: #{@stats.total_request_count}".colorize.bold
+      puts "Total request made: #{@stats.requests.count}".colorize.bold
     end
 
     def log_final

@@ -4,32 +4,24 @@ module Cryload
     getter :total_request_count
     getter :request_number
     getter :ongoing_check_number
+    property :requests
 
     def initialize(@request_number)
       @total_request_count = 0
       @ongoing_check_number = @request_number / 10
-      @request_times = [] of Float64
-    end
-
-    def increase_total_request_count()
-      @total_request_count+=1
-    end
-
-    def add_to_request_times(time)
-      @request_times << time
+      @requests = [] of Request
     end
 
     def min_request_time
-      @request_times.min
+      @requests.map(&.time_taken).min
     end
 
     def max_request_time
-      @request_times.max
+      @requests.map(&.time_taken).max
     end
 
     def average_request_time
-      total_request_time = @request_times.sum
-      total_request_time / total_request_count
+      total_request_time / @requests.count
     end
 
     def request_per_second
@@ -37,7 +29,11 @@ module Cryload
     end
 
     def total_request_time_in_seconds
-      @request_times.sum / 1000
+      total_request_time / 1000
+    end
+
+    private def total_request_time
+      @requests.map(&.time_taken).sum
     end
   end
 end

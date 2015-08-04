@@ -11,7 +11,6 @@ module Cryload
       loop do
         check_log
         ch.receive
-        @stats.increase_total_request_count
       end
     end
 
@@ -24,8 +23,8 @@ module Cryload
           start_time = Time.now
           client.get uri.full_path
           end_time = Time.now
-          time_taken_in_ms = (end_time - start_time).to_f * 1000.0
-          @stats.add_to_request_times time_taken_in_ms
+          request = Request.new start_time, end_time
+          @stats.requests << request
           channel.send nil
         end
       end
