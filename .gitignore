@@ -2,3 +2,4 @@
 /libs/
 /.crystal/
 /doc/
+.DS_Store
