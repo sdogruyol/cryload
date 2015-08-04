@@ -21,9 +21,9 @@ module Cryload
       spawn do
         loop do
           start_time = Time.now
-          client.get uri.full_path
+          response = client.get uri.full_path
           end_time = Time.now
-          request = Request.new start_time, end_time
+          request = Request.new start_time, end_time, response.status_code
           @stats.requests << request
           channel.send nil
         end

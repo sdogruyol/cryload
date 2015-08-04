@@ -32,8 +32,20 @@ module Cryload
       total_request_time / 1000
     end
 
+    def ok_requests
+      request_statuses.select{|status| status == true}.count
+    end
+
+    def not_ok_requests
+      request_statuses.select{|status| status == false}.count
+    end
+
     private def total_request_time
       @requests.map(&.time_taken).sum
+    end
+
+    private def request_statuses
+      @requests.map(&.is_ok?)
     end
   end
 end
