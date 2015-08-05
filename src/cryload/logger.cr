@@ -16,7 +16,6 @@ module Cryload
     end
 
     def log_final
-      puts "#{@stats.ok_requests}"
       puts "Completed All Requeasts!".colorize(:green)
       puts "-------------------------------"
       puts "\nTime taken per request:".colorize.blue.bold
