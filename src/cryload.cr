@@ -4,19 +4,28 @@ require "colorize"
 require "option_parser"
 
 module Cryload
+  # LoadGenerator is the main class in Cryload. It's responsible for generating
+  # the requests and other major stuff.
   class LoadGenerator
+    # LoadGenerator accepts two params.
+    # @host :: String
+    # @number :: Int32
     def initialize(@host, @number)
       @stats = Stats.new @number
       channel = generate_request_channel
       spawn_receive_loop channel
     end
 
+    # Generates a Channel for asynchronously sending HTTP requests.
     def generate_request_channel()
       channel = Channel(Nil).new
       spawn_request_loop channel
       channel
     end
 
+    # Spawns the main loop which creates the HTTP client. The HTTP clients
+    # sends HTTP::get requests to the specified host. It doesn't block
+    # the main program and send the completion of the request to channel.
     def spawn_request_loop(channel)
       uri = parse_uri
       client = create_http_client uri
@@ -28,6 +37,9 @@ module Cryload
       end
     end
 
+    # Spawns the receiver loop which listens the send events from channel.
+    # This loop is also responsible for checking the logs and gathering stats
+    # about all the completed requests.
     def spawn_receive_loop(channel)
       loop do
         check_log
