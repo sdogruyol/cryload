@@ -7,31 +7,51 @@ module Cryload
   class LoadGenerator
     def initialize(@host, @number)
       @stats = Stats.new @number
-      ch = generate_request_channel
-      loop do
-        check_log
-        ch.receive
-      end
+      channel = generate_request_channel
+      spawn_receive_loop channel
     end
 
     def generate_request_channel()
       channel = Channel(Nil).new
-      uri = URI.parse @host
-      client = HTTP::Client.new uri.host.not_nil!, port: uri.port, ssl: uri.scheme == "https"
-      spawn do
-        loop do
-          start_time = Time.now
-          response = client.get uri.full_path
-          end_time = Time.now
-          request = Request.new start_time, end_time, response.status_code
-          @stats.requests << request
-          channel.send nil
-        end
-      end
+      spawn_request_loop channel
       channel
     end
 
-    def check_log
+    def spawn_request_loop(channel)
+      uri = parse_uri
+      client = create_http_client uri
+      spawn do
+        loop do
+          get_response(client, uri)
+          channel.send nil
+        end
+      end
+    end
+
+    def spawn_receive_loop(channel)
+      loop do
+        check_log
+        channel.receive
+      end
+    end
+
+    private def parse_uri
+      uri = URI.parse @host
+    end
+
+    private def create_http_client(uri)
+      HTTP::Client.new uri.host.not_nil!, port: uri.port, ssl: uri.scheme == "https"
+    end
+
+    private def get_response(client, uri)
+      start_time = Time.now
+      response = client.get uri.full_path
+      end_time = Time.now
+      request = Request.new start_time, end_time, response.status_code
+      @stats.requests << request
+    end
+
+    private def check_log
       Logger.new @stats
     end
   end

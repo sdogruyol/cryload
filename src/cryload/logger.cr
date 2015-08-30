@@ -1,6 +1,5 @@
 module Cryload
   class Logger
-
     def initialize(@stats)
       setup_trap_signal
       if @stats.requests.count == @stats.request_number
@@ -36,6 +35,5 @@ module Cryload
         exit
       }
     end
-
   end
 end
