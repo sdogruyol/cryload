@@ -42,7 +42,7 @@ module Cryload
     # about all the completed requests.
     def spawn_receive_loop(channel)
       loop do
-        check_log
+        check_execution
         channel.receive
       end
     end
@@ -64,8 +64,8 @@ module Cryload
     end
 
     # Checks the logging
-    private def check_log
-      Logger.new @stats
+    private def check_execution
+      ExecutionHandler.check_execution @stats
     end
   end
 end
