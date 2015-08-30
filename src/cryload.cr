@@ -31,7 +31,7 @@ module Cryload
       client = create_http_client uri
       spawn do
         loop do
-          get_response(client, uri)
+          create_request(client, uri)
           channel.send nil
         end
       end
@@ -47,22 +47,23 @@ module Cryload
       end
     end
 
+    # Parses the host string and converts it to an URI
     private def parse_uri
       uri = URI.parse @host
     end
 
+    # Creates the HTTP client
     private def create_http_client(uri)
       HTTP::Client.new uri.host.not_nil!, port: uri.port, ssl: uri.scheme == "https"
     end
 
-    private def get_response(client, uri)
-      start_time = Time.now
-      response = client.get uri.full_path
-      end_time = Time.now
-      request = Request.new start_time, end_time, response.status_code
+    # Creates a new request to the given URI
+    private def create_request(client, uri)
+      request = Request.new client, uri
       @stats.requests << request
     end
 
+    # Checks the logging
     private def check_log
       Logger.new @stats
     end

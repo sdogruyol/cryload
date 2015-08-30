@@ -2,8 +2,12 @@ module Cryload
   class Request
     getter :time_taken
 
-    def initialize(start_time, end_time, @status_code)
+    def initialize(http_client, uri)
+      start_time = Time.now
+      response = http_client.get uri.full_path
+      end_time = Time.now
       @time_taken = (end_time - start_time).to_f * 1000.0
+      @status_code = response.status_code
     end
 
     def is_ok?
