@@ -1,9 +1,12 @@
 module Cryload
+  # Singleton class which handles all the logging
   class Logger
+    # Logs the ongoing request and prints out total request made up until that time.
     def self.log_ongoing(stats)
       puts "Total request made: #{stats.requests.count}".colorize.bold
     end
 
+    # Logs the final stats containing all the information.
     def self.log_final(stats)
       puts "Completed All Requeasts!".colorize(:green)
       puts "-------------------------------"
