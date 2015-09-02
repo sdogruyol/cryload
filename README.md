@@ -4,9 +4,18 @@ HTTP benchmarking tool writen in [Crystal](http://crystal-lang.org/)
 
 ## Installation
 
+### From Source
+
 ```
 git clone https://github.com/Sdogruyol/cryload.git && cd cryload
 crystal build src/cryload.cr --release
+```
+
+### OS X
+
+```
+brew tap sdogruyol/cryload
+brew install cryload
 ```
 
 ## Usage
