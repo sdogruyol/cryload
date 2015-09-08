@@ -25,6 +25,5 @@ module Cryload
         exit
       }
     end
-
   end
 end

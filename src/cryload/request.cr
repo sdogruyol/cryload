@@ -21,6 +21,5 @@ module Cryload
     def is_ok?
       @status_code.between?(200, 300)
     end
-
   end
 end
