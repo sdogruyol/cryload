@@ -17,7 +17,7 @@ module Cryload
     end
 
     # Generates a Channel for asynchronously sending HTTP requests.
-    def generate_request_channel()
+    def generate_request_channel
       channel = Channel(Nil).new
       spawn_request_loop channel
       channel
