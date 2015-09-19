@@ -23,7 +23,7 @@ module Cryload
     end
 
     def average_request_time
-      total_request_time / @requests.count
+      total_request_time / @requests.size
     end
 
     def request_per_second
@@ -35,11 +35,11 @@ module Cryload
     end
 
     def ok_requests
-      request_statuses.select{|status| status == true}.count
+      request_statuses.select{|status| status == true}.size
     end
 
     def not_ok_requests
-      request_statuses.select{|status| status == false}.count
+      request_statuses.select{|status| status == false}.size
     end
 
     private def total_request_time
