@@ -3,3 +3,4 @@
 /.crystal/
 /doc/
 .DS_Store
+.shards
