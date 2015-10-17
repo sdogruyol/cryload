@@ -21,6 +21,5 @@ module Cryload
       puts "Total request made: #{stats.requests.size}".colorize.bold
       puts "Total time taken: #{stats.total_request_time_in_seconds} seconds".colorize.bold
     end
-
   end
 end

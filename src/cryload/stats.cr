@@ -35,11 +35,11 @@ module Cryload
     end
 
     def ok_requests
-      request_statuses.select{|status| status == true}.size
+      request_statuses.select { |status| status == true }.size
     end
 
     def not_ok_requests
-      request_statuses.select{|status| status == false}.size
+      request_statuses.select { |status| status == false }.size
     end
 
     private def total_request_time
