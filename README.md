@@ -27,6 +27,15 @@ You can specify the number of requests after the url. The default request number
 
 ![Screenshot](screenshot.png)
 
+### Bash Completion
+
+Run these commands to enable Bash Autocompletion
+
+```
+cryload --completion >> ~/.cryload.completion.sh
+echo 'source ~/.cryload.completion.sh' >> .bash_profile
+```
+
 ## Development
 
 DONE:

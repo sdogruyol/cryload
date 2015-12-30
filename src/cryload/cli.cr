@@ -1,4 +1,6 @@
 # Command Line Interface Handler for Cryload
+require "completion"
+
 module Cryload
   class Cli
     def initialize
@@ -30,6 +32,8 @@ module Cryload
         if ARGV.empty?
           puts opts
         end
+
+        complete_with opts
       end.parse!
     end
 
