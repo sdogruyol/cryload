@@ -6,6 +6,8 @@ HTTP benchmarking tool writen in [Crystal](http://crystal-lang.org/)
 
 ### From Source
 
+Cryload is tested on Crystal `0.9.1`
+
 ```
 git clone https://github.com/Sdogruyol/cryload.git && cd cryload
 crystal build src/cryload.cr --release
