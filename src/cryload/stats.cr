@@ -1,29 +1,29 @@
 module Cryload
   # Stats holder for the benchmark
   class Stats
+    REQUESTS = [] of Request
+
     getter :total_request_count
     getter :request_number
     getter :ongoing_check_number
-    property :requests
 
     TIME_IN_MILISECONDS = 1000
 
     def initialize(@request_number)
       @total_request_count = 0
       @ongoing_check_number = @request_number / 10
-      @requests = [] of Request
     end
 
     def min_request_time
-      @requests.map(&.time_taken).min
+      REQUESTS.map(&.time_taken as Float64).min
     end
 
     def max_request_time
-      @requests.map(&.time_taken).max
+      REQUESTS.map(&.time_taken as Float64).max
     end
 
     def average_request_time
-      total_request_time / @requests.size
+      total_request_time / REQUESTS.size
     end
 
     def request_per_second
@@ -42,12 +42,29 @@ module Cryload
       request_statuses.select { |status| status == false }.size
     end
 
+    def requests
+      REQUESTS
+    end
+
+    def <<(request)
+      REQUESTS << request
+    end
+
     private def total_request_time
-      @requests.map(&.time_taken).sum
+      REQUESTS.map(&.time_taken as Float64).sum
     end
 
     private def request_statuses
-      @requests.map(&.is_ok?)
+      REQUESTS.map(&.is_ok? as Bool)
     end
   end
+
+  def self.create_stats(request_number)
+    @@stats = Stats.new request_number
+  end
+
+  def self.stats
+    @@stats.not_nil!
+  end
+
 end

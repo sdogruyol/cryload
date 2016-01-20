@@ -8,10 +8,9 @@ module Cryload
   # the requests and other major stuff.
   class LoadGenerator
     # LoadGenerator accepts two params.
-    # @host :: String
-    # @number :: Int32
-    def initialize(@host, @number)
-      @stats = Stats.new @number
+    def initialize(@host : String, @request_number : Int32)
+      Cryload.create_stats @request_number
+      # Cryload.create_execution_handler
       channel = generate_request_channel
       spawn_receive_loop channel
     end
@@ -42,7 +41,7 @@ module Cryload
     # about all the completed requests.
     def spawn_receive_loop(channel)
       loop do
-        check_execution
+        ExecutionHandler.check
         channel.receive
       end
     end
@@ -60,14 +59,14 @@ module Cryload
     # Creates a new request to the given URI
     private def create_request(client, uri)
       request = Request.new client, uri
-      @stats.requests << request
-    end
-
-    # Checks the logging
-    private def check_execution
-      ExecutionHandler.check_execution @stats
+      Cryload.stats << request
     end
   end
 end
+
+Signal::INT.trap {
+  Cryload::Logger.log_final
+  exit
+}
 
 Cryload::Cli.new

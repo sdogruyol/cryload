@@ -6,23 +6,15 @@ module Cryload
   # stats and terminates the execution
   class ExecutionHandler
     # The main check for execution
-    def self.check_execution(stats)
-      setup_trap_signal(stats)
-      if stats.requests.size == stats.request_number
-        Logger.log_final(stats)
+    def self.check
+      if Cryload.stats.requests.size == Cryload.stats.request_number
+        Logger.log_final
         exit
-      elsif (stats.requests.size % stats.ongoing_check_number == 0) && stats.requests.size != stats.request_number && stats.requests.size != 0
-        Logger.log_ongoing(stats)
+      elsif (Cryload.stats.requests.size % Cryload.stats.ongoing_check_number == 0) &&
+            Cryload.stats.requests.size != Cryload.stats.request_number &&
+            Cryload.stats.requests.size != 0
+        Logger.log_ongoing
       end
-    end
-
-    # Setups the INT signal trap for logging the ongoing stats
-    # and exit
-    private def self.setup_trap_signal(stats)
-      Signal::INT.trap {
-        Logger.log_final(stats)
-        exit
-      }
     end
   end
 end
