@@ -1,6 +1,2 @@
 name: cryload
 version : 0.2.0
-
-dependencies:
-  completion:
-    github: f/completion

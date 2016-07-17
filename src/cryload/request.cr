@@ -1,9 +1,10 @@
 module Cryload
   # Respresents an HTTP::get request
   class Request
-    # Initializes with
-    # http_client :: HTTP::Client
-    # uri :: URI
+    @start_time : Time
+    @end_time : Time
+    @status_code : Int32
+
     def initialize(http_client, uri)
       @start_time = Time.now
       response = http_client.get uri.full_path

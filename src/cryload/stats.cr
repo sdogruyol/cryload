@@ -3,23 +3,25 @@ module Cryload
   class Stats
     REQUESTS = [] of Request
 
+    @ongoing_check_number : Int32
+
     getter :total_request_count
     getter :request_number
     getter :ongoing_check_number
 
     TIME_IN_MILISECONDS = 1000
 
-    def initialize(@request_number)
+    def initialize(@request_number : Int32)
       @total_request_count = 0
       @ongoing_check_number = @request_number / 10
     end
 
     def min_request_time
-      REQUESTS.map(&.time_taken as Float64).min
+      REQUESTS.map(&.time_taken.as(Float64)).min
     end
 
     def max_request_time
-      REQUESTS.map(&.time_taken as Float64).max
+      REQUESTS.map(&.time_taken.as(Float64)).max
     end
 
     def average_request_time
@@ -51,11 +53,11 @@ module Cryload
     end
 
     private def total_request_time
-      REQUESTS.map(&.time_taken as Float64).sum
+      REQUESTS.map(&.time_taken.as(Float64)).sum
     end
 
     private def request_statuses
-      REQUESTS.map(&.is_ok? as Bool)
+      REQUESTS.map(&.is_ok?.as(Bool))
     end
   end
 
@@ -66,5 +68,4 @@ module Cryload
   def self.stats
     @@stats.not_nil!
   end
-
 end
