@@ -11,7 +11,6 @@ module Cryload
 
     # Prepares OptionParser
     private def prepare_op
-      @options[:requests] = "1000"
       OptionParser.parse(ARGV) do |opts|
         opts.banner = "Usage: ./cryload [options]"
 
