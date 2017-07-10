@@ -29,6 +29,16 @@ You can specify the number of requests after the url. The default request number
 
 ![Screenshot](screenshot.png)
 
+
+When running against an SSL\TLS enabled site, you have the option of using verification for the ssl certificate.  
+By default the verification it turned off as most use cases will run against a local lab server.  
+If you wish to turn it on, just use: `--tls` or `-t` with 'y' or 'n' for yes or no  
+
+```
+./cryload -s https://wwww.localhost:9292 -n 10000 --tls y
+
+```
+
 ### Bash Completion
 
 Run these commands to enable Bash Autocompletion
