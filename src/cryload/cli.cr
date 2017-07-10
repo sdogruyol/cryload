@@ -5,7 +5,7 @@ module Cryload
       @options = {} of Symbol => String
       prepare_op
       if input_valid?
-        Cryload::LoadGenerator.new @options[:server], @options[:numbers].to_i
+        Cryload::LoadGenerator.new @options[:server], @options[:numbers].to_i, @options[:tls]
       end
     end
 
@@ -20,6 +20,10 @@ module Cryload
 
         opts.on("-n NUMBERS", "--numbers NUMBERS", "Number of requests to make") do |v|
           @options[:numbers] = v
+        end
+
+        opts.on("-t SSL", "--tls SSL", "Verify remote SSL certificate ? [y/n]") do |v|
+          @options[:tls] = v.downcase == "y" ? true : false
         end
 
         opts.on("-h", "--help", "Print Help") do |v|
@@ -46,6 +50,9 @@ module Cryload
       else
         puts "You have to specify '-n' and '-s' flags, for help use '-h'".colorize(:red)
         false
+      end
+      unless @options.has_key?(:tls)
+        @options[:tls] = false
       end
     end
   end
