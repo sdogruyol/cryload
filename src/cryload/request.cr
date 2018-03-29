@@ -14,12 +14,12 @@ module Cryload
 
     # Calculates time taken for the request (in miliseconds)
     def time_taken
-      (@end_time - @start_time).to_f * 1000.0
+      (@end_time - @start_time).to_f * 1_000.0
     end
 
     # Checks if response status_code is in between 200.300 meaning
     # the request was successful
-    def is_ok?
+    def ok?
       200 < @status_code < 300
     end
   end
