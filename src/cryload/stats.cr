@@ -57,7 +57,7 @@ module Cryload
     end
 
     private def request_statuses
-      REQUESTS.map(&.is_ok?.as(Bool))
+      REQUESTS.map(&.ok?.as(Bool))
     end
   end
 

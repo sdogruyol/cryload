@@ -1,10 +1,6 @@
-language: c
-before_install: |
-  curl http://dist.crystal-lang.org/apt/setup.sh | sudo bash
-  sudo apt-get -q update
-
-install: |
-  sudo apt-get install crystal
+language: crystal
 
 script:
-  - crystal spec
+  - shards install
+  - crystal deps
+  - bin/ameba

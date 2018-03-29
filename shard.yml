@@ -9,6 +9,10 @@ targets:
   cryload:
     main: src/cryload.cr
 
+development_dependencies:
+  ameba:
+    github: veelenga/ameba
+
 crystal: 0.24.2
 
 license: MIT
