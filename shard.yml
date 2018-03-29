@@ -1,2 +1,14 @@
 name: cryload
-version : 0.2.0
+
+version: 0.2.0
+
+authors:
+  - Serdar Doğruyol <dogruyolserdar@gmail.com>
+
+targets:
+  cryload:
+    main: src/cryload.cr
+
+crystal: 0.24.2
+
+license: MIT
