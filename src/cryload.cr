@@ -1,5 +1,6 @@
 require "./cryload/*"
 require "http"
+require "openssl"
 require "colorize"
 require "option_parser"
 
@@ -8,7 +9,7 @@ module Cryload
   # the requests and other major stuff.
   class LoadGenerator
     # LoadGenerator accepts two params.
-    def initialize(@host : String, @request_number : Int32)
+    def initialize(@host : String, @request_number : Int32, @verify_tls : Bool)
       Cryload.create_stats @request_number
       # Cryload.create_execution_handler
       channel = generate_request_channel
@@ -53,7 +54,12 @@ module Cryload
 
     # Creates the HTTP client
     private def create_http_client(uri)
-      HTTP::Client.new uri.host.not_nil!, port: uri.port, tls: uri.scheme == "https"
+      ctx = OpenSSL::SSL::Context::Client.new
+      ctx.verify_mode = OpenSSL::SSL::VerifyMode::NONE unless @verify_tls
+      HTTP::Client.new(
+        host: uri.host.to_s,
+        tls: (uri.scheme == "https") ? ctx : false
+      )
     end
 
     # Creates a new request to the given URI
