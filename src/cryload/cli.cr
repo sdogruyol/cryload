@@ -30,7 +30,7 @@ module Cryload
         if ARGV.empty?
           puts opts
         end
-      end.parse!
+      end.parse
     end
 
     # Validate the input from command line

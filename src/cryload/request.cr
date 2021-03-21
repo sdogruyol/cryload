@@ -6,9 +6,9 @@ module Cryload
     @status_code : Int32
 
     def initialize(http_client, uri)
-      @start_time = Time.now
-      response = http_client.get uri.full_path
-      @end_time = Time.now
+      @start_time = Time.local
+      response = http_client.get uri.request_target
+      @end_time = Time.local
       @status_code = response.status_code
     end
 
