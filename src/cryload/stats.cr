@@ -13,7 +13,7 @@ module Cryload
 
     def initialize(@request_number : Int32)
       @total_request_count = 0
-      @ongoing_check_number = @request_number / 10
+      @ongoing_check_number = @request_number // 10
     end
 
     def min_request_time
