@@ -20,7 +20,7 @@ module Cryload
     # Checks if response status_code is in between 200.300 meaning
     # the request was successful
     def is_ok?
-      200 < @status_code < 300
+      200 <= @status_code <= 300
     end
   end
 end
