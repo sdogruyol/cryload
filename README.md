@@ -1,5 +1,7 @@
 # cryload
 
+[![CI](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml/badge.svg)](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml)
+
 HTTP benchmarking tool written in [Crystal](https://crystal-lang.org/).
 
 ## Installation
