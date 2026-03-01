@@ -161,6 +161,23 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
   end
 
+  it "shows connection refused error when server is unreachable" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:19999", "-n", "5"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Connection failed")
+    combined.should contain("Could not reach")
+    process.exit_code.should eq(1)
+  end
+
   it "runs for specified duration with -d" do
     server = HTTP::Server.new do |context|
       context.response.status_code = 200

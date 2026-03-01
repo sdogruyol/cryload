@@ -7,6 +7,9 @@ module Cryload
   # LoadGenerator is the main class in Cryload. It's responsible for generating
   # the requests and other major stuff.
   class LoadGenerator
+    @@connection_error_printed = false
+    @@connection_error_mutex = Mutex.new
+
     # LoadGenerator: request mode (host, request_number, connections) or duration mode (host, connections, duration_seconds).
     def initialize(@host : String, request_number : Int32? = nil, @connections : Int32 = 10, duration_seconds : Int32? = nil)
       @request_number = request_number || -1
@@ -119,6 +122,19 @@ module Cryload
     private def create_request(client, uri)
       request = Request.new client, uri
       Cryload.stats << request
+    rescue ex : Socket::Error | IO::Error | OpenSSL::SSL::Error
+      host = uri.host || "localhost"
+      port = uri.port || (uri.scheme == "https" ? 443 : 80)
+      msg = ex.message.to_s
+      @@connection_error_mutex.synchronize do
+        unless @@connection_error_printed
+          STDERR.puts "Connection failed: Could not reach #{host}:#{port}"
+          STDERR.puts "  → #{msg}"
+          STDERR.puts "  → Check if the server is running and accepting connections on this port."
+          @@connection_error_printed = true
+        end
+      end
+      exit 1
     end
   end
 end
