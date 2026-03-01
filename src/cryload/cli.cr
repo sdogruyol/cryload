@@ -6,7 +6,14 @@ module Cryload
       prepare_op
       if input_valid?
         connections = @options[:connections].as(Int32)
-        Cryload::LoadGenerator.new @options[:server].as(String), @options[:numbers].to_s.to_i, connections
+        server = @options[:server].as(String)
+        if @options.has_key?(:duration)
+          duration = @options[:duration].as(Int32)
+          Cryload::LoadGenerator.new server, nil, connections, duration
+        else
+          numbers = @options[:numbers].to_s.to_i
+          Cryload::LoadGenerator.new server, numbers, connections
+        end
       end
     end
 
@@ -29,6 +36,10 @@ module Cryload
           @options[:connections] = v.to_i
         end
 
+        opts.on("-d SECONDS", "--duration SECONDS", "Duration of test in seconds (e.g. -d 10 for 10 seconds)") do |v|
+          @options[:duration] = v.to_i
+        end
+
         opts.on("-h", "--help", "Print Help") do |v|
           puts opts
         end
@@ -41,17 +52,19 @@ module Cryload
 
     # Validate the input from command line
     private def input_valid?
-      if @options.has_key?(:server) && @options.has_key?(:numbers)
+      unless @options.has_key?(:server)
+        puts "You have to specify '-s' or '--server' flag to indicate the target server".colorize(:red)
+        return false
+      end
+
+      if @options.has_key?(:duration)
+        puts "Preparing to make it CRY for #{@options[:duration]} seconds with #{@options[:connections]} connections!".colorize(:green)
+        true
+      elsif @options.has_key?(:numbers)
         puts "Preparing to make it CRY for #{@options[:numbers]} requests with #{@options[:connections]} connections!".colorize(:green)
         true
-      elsif @options.has_key?(:server)
-        puts "You have to specify '-n' or '--numbers' flag to indicate the number of requests to make".colorize(:red)
-        false
-      elsif @options.has_key?(:numbers)
-        puts "You have to specify '-s' or '--server' flag to indicate the target server".colorize(:red)
-        false
       else
-        puts "You have to specify '-n' and '-s' flags, for help use '-h'".colorize(:red)
+        puts "You have to specify '-n' (number of requests) or '-d' (duration in seconds)".colorize(:red)
         false
       end
     end

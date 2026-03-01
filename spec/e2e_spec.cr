@@ -125,6 +125,7 @@ describe "Cryload E2E" do
     output.to_s.should contain("Usage:")
     output.to_s.should contain("--server")
     output.to_s.should contain("--numbers")
+    output.to_s.should contain("--duration")
   end
 
   it "exits with error when server is missing" do
@@ -143,7 +144,7 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
   end
 
-  it "exits with error when numbers is missing" do
+  it "exits with error when neither -n nor -d is specified" do
     output = IO::Memory.new
     error = IO::Memory.new
     process = Process.run(
@@ -155,7 +156,35 @@ describe "Cryload E2E" do
     )
 
     combined = output.to_s + error.to_s
-    combined.should contain("--numbers")
+    combined.should contain("-n")
+    combined.should contain("-d")
     process.exit_code.should eq(0)
+  end
+
+  it "runs for specified duration with -d" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "-s", "http://127.0.0.1:#{port}", "-d", "1", "-c", "3"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    output.to_s.should contain("1 seconds")
+    output.to_s.should contain("Completed All Requests!")
+    output.to_s.should contain("Total request made:")
   end
 end

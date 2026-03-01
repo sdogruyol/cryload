@@ -8,12 +8,14 @@ module Cryload
     getter :total_request_count
     getter :request_number
     getter :ongoing_check_number
+    getter :duration_mode
+    getter :benchmark_start
 
     TIME_IN_MILISECONDS = 1000
 
-    def initialize(@request_number : Int32)
+    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant)
       @total_request_count = 0
-      @ongoing_check_number = {@request_number // 10, 1}.max
+      @ongoing_check_number = @duration_mode ? 100 : {@request_number // 10, 1}.max
     end
 
     def min_request_time
@@ -28,8 +30,16 @@ module Cryload
       total_request_time / REQUESTS.size
     end
 
+    # Requests per second = total requests / wall clock time (actual throughput)
     def request_per_second
-      TIME_IN_MILISECONDS / average_request_time
+      return 0.0 if REQUESTS.empty?
+      elapsed = (Time.instant - @benchmark_start).total_seconds
+      elapsed > 0 ? REQUESTS.size.to_f / elapsed : 0.0
+    end
+
+    # Wall clock time from benchmark start to now
+    def wall_clock_seconds
+      (Time.instant - @benchmark_start).total_seconds
     end
 
     def total_request_time_in_seconds
@@ -61,8 +71,8 @@ module Cryload
     end
   end
 
-  def self.create_stats(request_number)
-    @@stats = Stats.new request_number
+  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant)
+    @@stats = Stats.new request_number, duration_mode, benchmark_start
   end
 
   def self.stats

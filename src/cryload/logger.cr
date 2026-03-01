@@ -19,7 +19,7 @@ module Cryload
       puts "2xx requests #{Cryload.stats.ok_requests}".colorize.bold
       puts "Non 2xx requests #{Cryload.stats.not_ok_requests}".colorize.bold
       puts "Total request made: #{Cryload.stats.requests.size}".colorize.bold
-      puts "Total time taken: #{Cryload.stats.total_request_time_in_seconds} seconds".colorize.bold
+      puts "Total time taken: #{Cryload.stats.wall_clock_seconds.round(2)} seconds".colorize.bold
     end
   end
 end

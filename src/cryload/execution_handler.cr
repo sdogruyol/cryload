@@ -5,7 +5,7 @@ module Cryload
   # Otherwise if an int signal received the logs the ongoing final
   # stats and terminates the execution
   class ExecutionHandler
-    # The main check for execution
+    # The main check for execution (request count mode)
     def self.check
       if Cryload.stats.requests.size == Cryload.stats.request_number
         Logger.log_final
@@ -13,6 +13,14 @@ module Cryload
       elsif (Cryload.stats.requests.size % Cryload.stats.ongoing_check_number == 0) &&
             Cryload.stats.requests.size != Cryload.stats.request_number &&
             Cryload.stats.requests.size != 0
+        Logger.log_ongoing
+      end
+    end
+
+    # Check for duration mode - only log ongoing at intervals
+    def self.check_duration
+      if Cryload.stats.requests.size > 0 &&
+         (Cryload.stats.requests.size % Cryload.stats.ongoing_check_number == 0)
         Logger.log_ongoing
       end
     end
