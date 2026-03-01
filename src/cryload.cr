@@ -63,10 +63,3 @@ module Cryload
     end
   end
 end
-
-Signal::INT.trap {
-  Cryload::Logger.log_final
-  exit
-}
-
-Cryload::Cli.new

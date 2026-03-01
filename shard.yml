@@ -7,7 +7,7 @@ authors:
 
 targets:
   cryload:
-    main: src/cryload.cr
+    main: src/main.cr
 
 crystal: 1.0.0
 
