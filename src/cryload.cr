@@ -115,7 +115,8 @@ module Cryload
 
     # Creates the HTTP client
     private def create_http_client(uri)
-      HTTP::Client.new uri.host.not_nil!, port: uri.port, tls: uri.scheme == "https"
+      port = uri.port || (uri.scheme == "https" ? 443 : 80)
+      HTTP::Client.new uri.host.not_nil!, port: port, tls: uri.scheme == "https"
     end
 
     # Creates a new request to the given URI
