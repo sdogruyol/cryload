@@ -21,7 +21,6 @@ module Cryload
 
       puts "  Stats      Avg      Stdev    Max"
       puts "  Latency    #{avg_ms}ms   #{stdev_ms}ms   #{max_ms}ms"
-      puts "  Req/Sec    #{rps}"
       puts
       puts "  #{total} requests in #{elapsed}s"
       puts "  Requests/sec:  #{rps}"
