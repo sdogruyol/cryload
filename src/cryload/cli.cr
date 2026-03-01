@@ -22,11 +22,7 @@ module Cryload
       @options[:requests] = "1000"
       @options[:connections] = 10
       OptionParser.parse(ARGV) do |opts|
-        opts.banner = "Usage: ./cryload [options]"
-
-        opts.on("-s SERVER", "--server SERVER", "Target Server") do |v|
-          @options[:server] = v
-        end
+        opts.banner = "Usage: cryload <url> [options]"
 
         opts.on("-n NUMBERS", "--numbers NUMBERS", "Number of requests to make") do |v|
           @options[:numbers] = v
@@ -48,12 +44,18 @@ module Cryload
           puts opts
         end
       end.parse
+
+      # First positional argument is the target URL
+      if (url = ARGV[0]?) && !url.starts_with?("-")
+        @options[:server] = url
+      end
     end
 
     # Validate the input from command line
     private def input_valid?
       unless @options.has_key?(:server)
-        puts "You have to specify '-s' or '--server' flag to indicate the target server".colorize(:red)
+        puts "Usage: cryload <url> [options]".colorize(:red)
+        puts "Example: cryload http://localhost:3000 -n 100".colorize(:red)
         return false
       end
 

@@ -21,7 +21,7 @@ describe "Cryload E2E" do
     error = IO::Memory.new
     process = Process.run(
       "crystal",
-      ["run", "src/main.cr", "--", "-s", "http://127.0.0.1:#{port}", "-n", "10"],
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "10"],
       output: output,
       error: error,
       chdir: File.dirname(__DIR__)
@@ -52,7 +52,7 @@ describe "Cryload E2E" do
     output = IO::Memory.new
     Process.run(
       "crystal",
-      ["run", "src/main.cr", "--", "-s", "http://127.0.0.1:#{port}", "-n", "10"],
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "10"],
       output: output,
       chdir: File.dirname(__DIR__)
     )
@@ -77,7 +77,7 @@ describe "Cryload E2E" do
     output = IO::Memory.new
     Process.run(
       "crystal",
-      ["run", "src/main.cr", "--", "-s", "http://127.0.0.1:#{port}", "-n", "5"],
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "5"],
       output: output,
       chdir: File.dirname(__DIR__)
     )
@@ -102,7 +102,7 @@ describe "Cryload E2E" do
     output = IO::Memory.new
     Process.run(
       "crystal",
-      ["run", "src/main.cr", "--", "-s", "http://127.0.0.1:#{port}", "-n", "20", "-c", "5"],
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "20", "-c", "5"],
       output: output,
       chdir: File.dirname(__DIR__)
     )
@@ -123,12 +123,12 @@ describe "Cryload E2E" do
     )
 
     output.to_s.should contain("Usage:")
-    output.to_s.should contain("--server")
+    output.to_s.should contain("<url>")
     output.to_s.should contain("--numbers")
     output.to_s.should contain("--duration")
   end
 
-  it "exits with error when server is missing" do
+  it "exits with error when url is missing" do
     output = IO::Memory.new
     error = IO::Memory.new
     process = Process.run(
@@ -140,7 +140,7 @@ describe "Cryload E2E" do
     )
 
     combined = output.to_s + error.to_s
-    combined.should contain("--server")
+    combined.should contain("cryload <url>")
     process.exit_code.should eq(0)
   end
 
@@ -149,7 +149,7 @@ describe "Cryload E2E" do
     error = IO::Memory.new
     process = Process.run(
       "crystal",
-      ["run", "src/main.cr", "--", "-s", "http://localhost:8080"],
+      ["run", "src/main.cr", "--", "http://localhost:8080"],
       output: output,
       error: error,
       chdir: File.dirname(__DIR__)
@@ -176,7 +176,7 @@ describe "Cryload E2E" do
     output = IO::Memory.new
     Process.run(
       "crystal",
-      ["run", "src/main.cr", "--", "-s", "http://127.0.0.1:#{port}", "-d", "1", "-c", "3"],
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-d", "1", "-c", "3"],
       output: output,
       chdir: File.dirname(__DIR__)
     )
