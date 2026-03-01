@@ -7,33 +7,46 @@ module Cryload
   # LoadGenerator is the main class in Cryload. It's responsible for generating
   # the requests and other major stuff.
   class LoadGenerator
-    # LoadGenerator accepts two params.
-    def initialize(@host : String, @request_number : Int32)
+    # LoadGenerator accepts host, request_number and connections (concurrent fibers).
+    def initialize(@host : String, @request_number : Int32, @connections : Int32 = 10)
       Cryload.create_stats @request_number
-      # Cryload.create_execution_handler
       channel = generate_request_channel
       spawn_receive_loop channel
     end
 
     # Generates a Channel for asynchronously sending HTTP requests.
+    # Spawns multiple workers (connections) that run in parallel.
     def generate_request_channel
       channel = Channel(Nil).new
-      spawn_request_loop channel
+      uri = parse_uri
+      connections = {1, {@connections, @request_number}.min}.max
+
+      connections.times do |i|
+        spawn_request_worker channel, uri, i, connections
+      end
+
       channel
     end
 
-    # Spawns the main loop which creates the HTTP client. The HTTP clients
-    # sends HTTP::get requests to the specified host. It doesn't block
-    # the main program and send the completion of the request to channel.
-    def spawn_request_loop(channel)
-      uri = parse_uri
-      client = create_http_client uri
+    # Spawns a worker that makes its share of requests.
+    # Each worker has its own HTTP client for connection reuse.
+    def spawn_request_worker(channel, uri, worker_index, total_workers)
       spawn do
-        loop do
+        client = create_http_client uri
+        requests_for_this_worker = requests_per_worker worker_index, total_workers
+
+        requests_for_this_worker.times do
           create_request(client, uri)
           channel.send nil
         end
       end
+    end
+
+    # Distributes requests across workers. First (request_number % workers) get one extra.
+    private def requests_per_worker(worker_index, total_workers)
+      base = @request_number // total_workers
+      remainder = @request_number % total_workers
+      worker_index < remainder ? base + 1 : base
     end
 
     # Spawns the receiver loop which listens the send events from channel.
