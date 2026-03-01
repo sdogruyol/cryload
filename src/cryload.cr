@@ -16,7 +16,9 @@ module Cryload
       @duration_seconds = duration_seconds
       @duration_mode = !@duration_seconds.nil?
 
-      Cryload.create_stats @request_number, @duration_mode, Time.instant
+      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host
+      worker_count = @duration_mode ? {1, @connections}.max : {1, {@connections, @request_number}.min}.max
+      Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count
       request_channel, done_channel, worker_count = generate_request_channel
       spawn_receive_loop request_channel, done_channel, worker_count
     end

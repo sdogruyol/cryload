@@ -32,9 +32,8 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     output.to_s.should contain("Preparing to make it CRY for 10 requests")
-    output.to_s.should contain("Completed All Requests!")
-    output.to_s.should contain("2xx requests")
-    output.to_s.should contain("Total request made: 10")
+    output.to_s.should contain("2xx:")
+    output.to_s.should contain("requests in")
   end
 
   it "reports 2xx as successful requests" do
@@ -59,7 +58,7 @@ describe "Cryload E2E" do
 
     server.close
 
-    output.to_s.should contain("2xx requests 10")
+    output.to_s.should contain("2xx: 10")
   end
 
   it "reports non-2xx as failed requests" do
@@ -84,7 +83,7 @@ describe "Cryload E2E" do
 
     server.close
 
-    output.to_s.should contain("Non 2xx requests 5")
+    output.to_s.should contain("Non-2xx: 5")
   end
 
   it "accepts -c/--connections for parallel requests" do
@@ -109,8 +108,8 @@ describe "Cryload E2E" do
 
     server.close
 
-    output.to_s.should contain("with 5 connections")
-    output.to_s.should contain("Total request made: 20")
+    output.to_s.should contain("Running load test @")
+    output.to_s.should contain("20 requests in")
   end
 
   it "prints help when -h is passed" do
@@ -200,8 +199,7 @@ describe "Cryload E2E" do
 
     server.close
 
-    output.to_s.should contain("1 seconds")
-    output.to_s.should contain("Completed All Requests!")
-    output.to_s.should contain("Total request made:")
+    output.to_s.should contain("Preparing to make it CRY for 1 seconds")
+    output.to_s.should contain("requests in")
   end
 end

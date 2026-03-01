@@ -16,7 +16,6 @@ module Cryload
       elsif size > 0 && size != Cryload.stats.request_number &&
             (size % Cryload.stats.ongoing_check_number == 0) &&
             size > @@last_logged_count
-        Logger.log_ongoing
         @@last_logged_count = size
       end
     end
@@ -27,7 +26,6 @@ module Cryload
       if size > 0 &&
          (size % Cryload.stats.ongoing_check_number == 0) &&
          size > @@last_logged_count
-        Logger.log_ongoing
         @@last_logged_count = size
       end
     end
