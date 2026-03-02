@@ -1,5 +1,6 @@
 require "spec"
 require "http/server"
+require "json"
 
 describe "Cryload E2E" do
   it "completes requests and prints final stats" do
@@ -125,6 +126,7 @@ describe "Cryload E2E" do
     output.to_s.should contain("<url>")
     output.to_s.should contain("--numbers")
     output.to_s.should contain("--duration")
+    output.to_s.should contain("--json")
   end
 
   it "exits with error when url is missing" do
@@ -217,5 +219,35 @@ describe "Cryload E2E" do
 
     output.to_s.should contain("Preparing to make it CRY for 1 seconds")
     output.to_s.should contain("requests in")
+  end
+
+  it "outputs json with --json including p95 and p99" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "20", "--json"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    parsed = JSON.parse(output.to_s)
+    parsed["requests"].as_i.should eq(20)
+    parsed["latency_ms"]["p95"].as_f.should be >= 0.0
+    parsed["latency_ms"]["p99"].as_f.should be >= 0.0
+    parsed["status_counts"]["2xx"].as_i.should eq(20)
   end
 end

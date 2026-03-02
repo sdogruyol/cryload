@@ -1,6 +1,10 @@
 module Cryload
   # Stats holder for the benchmark
   class Stats
+    HISTOGRAM_BUCKET_SIZE_MS = 1.0
+    HISTOGRAM_MAX_MS = 60_000
+    HISTOGRAM_BUCKET_COUNT = HISTOGRAM_MAX_MS + 1
+
     @ongoing_check_number : Int32
     @total_request_count : Int64
     @ok_requests : Int64
@@ -10,6 +14,8 @@ module Cryload
     @max_request_time_ms : Float64
     @mean_latency_ms : Float64
     @m2_latency_ms : Float64
+    @latency_histogram : Array(Int64)
+    @histogram_overflow_count : Int64
     @mutex : Mutex
 
     getter :request_number
@@ -17,10 +23,11 @@ module Cryload
     getter :duration_mode
     getter :benchmark_start
     getter :url
+    getter :json_output
 
     TIME_IN_MILISECONDS = 1000
 
-    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "")
+    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @json_output : Bool = false)
       @total_request_count = 0_i64
       @ok_requests = 0_i64
       @not_ok_requests = 0_i64
@@ -29,6 +36,8 @@ module Cryload
       @max_request_time_ms = 0.0
       @mean_latency_ms = 0.0
       @m2_latency_ms = 0.0
+      @latency_histogram = Array(Int64).new(HISTOGRAM_BUCKET_COUNT, 0_i64)
+      @histogram_overflow_count = 0_i64
       @mutex = Mutex.new
       @ongoing_check_number = @duration_mode ? 100 : {@request_number // 10, 1}.max
     end
@@ -95,6 +104,14 @@ module Cryload
       @mutex.synchronize { @total_request_count }
     end
 
+    def p95_request_time
+      percentile_request_time(95.0)
+    end
+
+    def p99_request_time
+      percentile_request_time(99.0)
+    end
+
     def <<(request : Request)
       record_request request.time_taken, request.is_ok?
     end
@@ -116,16 +133,47 @@ module Cryload
         @mean_latency_ms += delta / @total_request_count
         delta2 = time_taken_ms - @mean_latency_ms
         @m2_latency_ms += delta * delta2
+
+        bucket_index = (time_taken_ms / HISTOGRAM_BUCKET_SIZE_MS).floor.to_i
+        if bucket_index < HISTOGRAM_BUCKET_COUNT
+          @latency_histogram[bucket_index] += 1
+        else
+          @histogram_overflow_count += 1
+        end
       end
     end
 
     private def total_request_time
       @mutex.synchronize { @total_request_time_ms }
     end
+
+    private def percentile_request_time(percentile : Float64)
+      @mutex.synchronize do
+        return 0.0 if @total_request_count == 0
+
+        rank = (@total_request_count.to_f * (percentile / 100.0)).ceil.to_i64
+        rank = 1_i64 if rank < 1
+        seen = 0_i64
+
+        @latency_histogram.each_with_index do |count, index|
+          next if count == 0
+          seen += count
+          if seen >= rank
+            return index.to_f * HISTOGRAM_BUCKET_SIZE_MS
+          end
+        end
+
+        if seen + @histogram_overflow_count >= rank
+          return HISTOGRAM_MAX_MS.to_f
+        end
+
+        @max_request_time_ms
+      end
+    end
   end
 
-  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "")
-    @@stats = Stats.new request_number, duration_mode, benchmark_start, url
+  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "", json_output : Bool = false)
+    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, json_output
   end
 
   def self.stats

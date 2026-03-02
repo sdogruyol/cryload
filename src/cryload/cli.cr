@@ -2,7 +2,7 @@
 module Cryload
   class Cli
     def initialize
-      @options = {} of Symbol => String | Int32
+      @options = {} of Symbol => String | Int32 | Bool
       @show_help = false
       @parse_error = false
       prepare_op
@@ -17,12 +17,13 @@ module Cryload
 
       connections = @options[:connections].as(Int32)
       server = @options[:server].as(String)
+      json_output = @options[:json]?.try(&.as(Bool)) || false
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
-        Cryload::LoadGenerator.new server, nil, connections, duration
+        Cryload::LoadGenerator.new server, nil, connections, duration, json_output
       else
         numbers = @options[:numbers].as(Int32)
-        Cryload::LoadGenerator.new server, numbers, connections
+        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output
       end
     end
 
@@ -43,6 +44,10 @@ module Cryload
 
           opts.on("-d SECONDS", "--duration SECONDS", "Duration of test in seconds (e.g. -d 10 for 10 seconds)") do |v|
             @options[:duration] = v.to_i
+          end
+
+          opts.on("--json", "Output final results as JSON") do
+            @options[:json] = true
           end
 
           opts.on("-h", "--help", "Print Help") do
@@ -99,7 +104,7 @@ module Cryload
           STDERR.puts "Duration must be greater than 0.".colorize(:red)
           return false
         end
-        puts "Preparing to make it CRY for #{@options[:duration]} seconds with #{@options[:connections]} connections!".colorize(:green)
+        print_start_message("Preparing to make it CRY for #{@options[:duration]} seconds with #{@options[:connections]} connections!")
         true
       elsif @options.has_key?(:numbers)
         numbers = @options[:numbers].as(Int32)
@@ -107,12 +112,21 @@ module Cryload
           STDERR.puts "Number of requests must be greater than 0.".colorize(:red)
           return false
         end
-        puts "Preparing to make it CRY for #{@options[:numbers]} requests with #{@options[:connections]} connections!".colorize(:green)
+        print_start_message("Preparing to make it CRY for #{@options[:numbers]} requests with #{@options[:connections]} connections!")
         true
       else
         STDERR.puts "You have to specify '-n' (number of requests) or '-d' (duration in seconds)".colorize(:red)
         false
       end
+    end
+
+    private def print_start_message(message : String)
+      return if json_output?
+      puts message.colorize(:green)
+    end
+
+    private def json_output?
+      @options[:json]?.try(&.as(Bool)) || false
     end
 
     private def valid_url?(url : String)

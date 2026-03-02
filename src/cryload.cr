@@ -2,6 +2,7 @@ require "./cryload/*"
 require "http"
 require "colorize"
 require "option_parser"
+require "json"
 
 module Cryload
   # LoadGenerator is the main class in Cryload. It's responsible for generating
@@ -11,12 +12,12 @@ module Cryload
     @@connection_error_mutex = Mutex.new
 
     # LoadGenerator: request mode (host, request_number, connections) or duration mode (host, connections, duration_seconds).
-    def initialize(@host : String, request_number : Int32? = nil, @connections : Int32 = 10, duration_seconds : Int32? = nil)
+    def initialize(@host : String, request_number : Int32? = nil, @connections : Int32 = 10, duration_seconds : Int32? = nil, @json_output : Bool = false)
       @request_number = request_number || -1
       @duration_seconds = duration_seconds
       @duration_mode = !@duration_seconds.nil?
 
-      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host
+      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @json_output
       worker_count = @duration_mode ? {1, @connections}.max : {1, {@connections, @request_number}.min}.max
       Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count
       request_channel, done_channel, worker_count = generate_request_channel

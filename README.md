@@ -28,6 +28,7 @@ cryload <url> [options]
 | `-n`, `--numbers` | Number of requests to make |
 | `-d`, `--duration` | Duration of test in seconds |
 | `-c`, `--connections` | Concurrent connections (default: 10) |
+| `--json` | Print final result as JSON |
 | `-h`, `--help` | Show help |
 
 **Examples:**
@@ -46,12 +47,19 @@ cryload http://localhost:3000 -d 10 -c 100
 Preparing to make it CRY for 10 seconds with 100 connections!
 Running load test @ http://localhost:3000/
 
-  Stats      Avg      Stdev    Max
-  Latency    0.53ms   0.76ms   35.39ms
+  Latency (ms)      avg: 0.53   stdev: 0.76   max: 35.39
 
-  1696170 requests in 10.11s
-  Requests/sec:  167803.62
-  2xx: 1696170    Non-2xx: 0
+  Percentiles (ms)  p95: 0.96   p99: 1.34
+
+1696170 requests in 10.11s
+Requests/sec:  167803.62
+2xx: 1696170    Non-2xx: 0
+```
+
+**JSON output example:**
+
+```bash
+cryload http://localhost:3000 -n 1000 --json
 ```
 
 ## Contributing
