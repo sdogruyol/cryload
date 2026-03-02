@@ -16,6 +16,17 @@ Built with [Crystal](https://crystal-lang.org/) for high performance and low ove
 
 ## Installation
 
+### Option 1: Prebuilt binary (recommended)
+
+Download the latest prebuilt binary from the [Releases page](https://github.com/sdogruyol/cryload/releases), then make it executable:
+
+```bash
+chmod +x cryload
+./cryload --help
+```
+
+### Option 2: Build from source
+
 Requires Crystal `1.19.0` or later.
 
 ```bash
