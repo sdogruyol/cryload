@@ -274,6 +274,38 @@ describe "Cryload E2E" do
     process.exit_code.should eq(1)
   end
 
+  it "exits with error on invalid http method" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "-m", "FOO"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Invalid HTTP method")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error on non-positive timeout" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--timeout", "0"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Timeout must be greater than 0 seconds")
+    process.exit_code.should eq(1)
+  end
+
   it "outputs json with --json including p95 and p99" do
     server = HTTP::Server.new do |context|
       context.response.status_code = 200
