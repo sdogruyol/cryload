@@ -131,6 +131,7 @@ describe "Cryload E2E" do
     output.to_s.should contain("--body")
     output.to_s.should contain("--header")
     output.to_s.should contain("--timeout")
+    output.to_s.should contain("--insecure")
   end
 
   it "exits with error when url is missing" do

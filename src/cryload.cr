@@ -22,6 +22,7 @@ module Cryload
       @http_body : String? = nil,
       @http_headers : HTTP::Headers = HTTP::Headers.new,
       @timeout_seconds : Int32? = nil,
+      @insecure : Bool = false,
     )
       @request_number = request_number || -1
       @duration_seconds = duration_seconds
@@ -137,7 +138,12 @@ module Cryload
     # Creates the HTTP client
     private def create_http_client(uri)
       port = uri.port || (uri.scheme == "https" ? 443 : 80)
-      client = HTTP::Client.new uri.host.not_nil!, port: port, tls: uri.scheme == "https"
+      tls_context = if uri.scheme == "https"
+                      @insecure ? OpenSSL::SSL::Context::Client.insecure : true
+                    else
+                      false
+                    end
+      client = HTTP::Client.new uri.host.not_nil!, port: port, tls: tls_context
       if (timeout = @timeout_seconds)
         span = timeout.seconds
         client.connect_timeout = span

@@ -21,13 +21,14 @@ module Cryload
       method = @options[:method].as(String)
       body = @options[:body]?.try(&.as(String))
       timeout_seconds = @options[:timeout]?.try(&.as(Int32))
+      insecure = @options[:insecure]?.try(&.as(Bool)) || false
       headers = parse_headers(@options[:headers].as(Array(String)))
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
-        Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds
+        Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds, insecure
       else
         numbers = @options[:numbers].as(Int32)
-        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output, method, body, headers, timeout_seconds
+        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output, method, body, headers, timeout_seconds, insecure
       end
     end
 
@@ -67,6 +68,10 @@ module Cryload
 
           opts.on("--timeout SECONDS", "Client connect/read timeout in seconds") do |v|
             @options[:timeout] = v.to_i
+          end
+
+          opts.on("--insecure", "Accept invalid TLS certificates (HTTPS only)") do
+            @options[:insecure] = true
           end
 
           opts.on("--json", "Output final results as JSON") do
