@@ -32,6 +32,7 @@ cryload <url> [options]
 | `-b`, `--body` | HTTP request body |
 | `-H`, `--header` | HTTP header, repeatable (`-H "Key: Value"`) |
 | `--timeout` | Client connect/read timeout in seconds |
+| `--insecure` | Accept invalid TLS certificates for HTTPS |
 | `--json` | Print final result as JSON |
 | `-h`, `--help` | Show help |
 
@@ -70,6 +71,11 @@ cryload http://localhost:3000/api -n 300 -m POST -H "Authorization: Bearer token
 Duration mode + timeout
 ```bash
 cryload http://localhost:3000/api -d 15 -c 50 --timeout 3
+```
+
+HTTPS with self-signed cert (skip TLS verification)
+```bash
+cryload https://localhost:8443 -n 1000 --insecure
 ```
 
 JSON output for automation/CI
