@@ -140,7 +140,7 @@ describe "Cryload E2E" do
 
     combined = output.to_s + error.to_s
     combined.should contain("cryload <url>")
-    process.exit_code.should eq(0)
+    process.exit_code.should eq(1)
   end
 
   it "exits with error when neither -n nor -d is specified" do
@@ -157,7 +157,23 @@ describe "Cryload E2E" do
     combined = output.to_s + error.to_s
     combined.should contain("-n")
     combined.should contain("-d")
-    process.exit_code.should eq(0)
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error when url is invalid" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "localhost:8080", "-n", "10"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Invalid URL")
+    process.exit_code.should eq(1)
   end
 
   it "shows connection refused error when server is unreachable" do

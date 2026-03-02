@@ -112,7 +112,15 @@ module Cryload
 
     # Parses the host string and converts it to an URI
     private def parse_uri
-      uri = URI.parse @host
+      uri = URI.parse(@host)
+      unless uri.host && (uri.scheme == "http" || uri.scheme == "https")
+        STDERR.puts "Invalid URL '#{@host}'. Use an absolute http(s) URL (e.g. http://localhost:3000)."
+        exit 1
+      end
+      uri
+    rescue URI::Error
+      STDERR.puts "Invalid URL '#{@host}'. Use an absolute http(s) URL (e.g. http://localhost:3000)."
+      exit 1
     end
 
     # Creates the HTTP client
