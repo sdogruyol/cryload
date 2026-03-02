@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-binaries:
+    name: Build pre-built binary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: cryload-linux
+            binary_path: bin/cryload
+          - os: macos-latest
+            artifact_name: cryload-macos
+            binary_path: bin/cryload
+          - os: windows-latest
+            artifact_name: cryload-windows
+            binary_path: bin/cryload.exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: "1.19.0"
+
+      - name: Install dependencies
+        run: shards install
+
+      - name: Build release binary
+        run: shards build --release
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.binary_path }}
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Prepare release files
+        run: |
+          cp dist/cryload-linux/cryload dist/cryload-linux/cryload-linux
+          cp dist/cryload-macos/cryload dist/cryload-macos/cryload-macos
+          cp dist/cryload-windows/cryload.exe dist/cryload-windows/cryload-windows.exe
+
+      - name: Publish release with binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/cryload-linux/cryload-linux
+            dist/cryload-macos/cryload-macos
+            dist/cryload-windows/cryload-windows.exe
