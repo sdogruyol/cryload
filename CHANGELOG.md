@@ -4,6 +4,7 @@
 - **Latency Metrics** — Added percentile reporting (`p95`, `p99`) with histogram-backed calculation
 - **Output Modes** — Added `--json` output mode for automation/CI use cases
 - **HTTP Features** — Added `--method`, `--body`, repeatable `--header`, and `--timeout` support
+- **TLS** — Added `--insecure` to accept invalid certificates for HTTPS targets
 - **Logging** — Improved terminal latency/percentile output formatting readability
 
 # 2.0.0 (03-01-2026)
