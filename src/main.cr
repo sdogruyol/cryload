@@ -1,6 +1,6 @@
 require "./cryload"
 
-Signal::INT.trap do
+Process.on_terminate do
   Cryload::Logger.log_final
   exit
 end
