@@ -1,3 +1,7 @@
+# 2.2.0 (02-03-2026)
+
+- Use `Process.on_terminate` to fix Windows build
+
 # 2.1.0 (02-03-2026)
 
 - **CLI Validation** — Standardized exit codes for help/errors and improved argument validation (`-n/-d`, URL, connections, timeout, headers, method)
