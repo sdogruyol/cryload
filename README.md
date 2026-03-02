@@ -28,17 +28,53 @@ cryload <url> [options]
 | `-n`, `--numbers` | Number of requests to make |
 | `-d`, `--duration` | Duration of test in seconds |
 | `-c`, `--connections` | Concurrent connections (default: 10) |
+| `-m`, `--method` | HTTP method (default: GET) |
+| `-b`, `--body` | HTTP request body |
+| `-H`, `--header` | HTTP header, repeatable (`-H "Key: Value"`) |
+| `--timeout` | Client connect/read timeout in seconds |
 | `--json` | Print final result as JSON |
 | `-h`, `--help` | Show help |
 
 **Examples:**
 
+10,000 requests to localhost
 ```bash
-# 10,000 requests to localhost
 cryload http://localhost:9292 -n 10000
+```
 
-# 10 seconds with 100 connections
+10 seconds with 100 connections
+```bash
 cryload http://localhost:3000 -d 10 -c 100
+```
+
+Simple POST request
+```bash
+cryload http://localhost:3000/api/login -n 1000 -m POST
+```
+
+POST with plain text body
+```bash
+cryload http://localhost:3000/api/echo -n 500 -m POST -H "Content-Type: text/plain" -b "hello"
+```
+
+POST with JSON body
+```bash
+cryload http://localhost:3000/api -n 500 -m POST -H "Content-Type: application/json" -b '{"name":"cry"}' --timeout 5
+```
+
+POST with multiple headers
+```bash
+cryload http://localhost:3000/api -n 300 -m POST -H "Authorization: Bearer token123" -H "X-Request-ID: benchmark-1" -b '{"ok":true}'
+```
+
+Duration mode + timeout
+```bash
+cryload http://localhost:3000/api -d 15 -c 50 --timeout 3
+```
+
+JSON output for automation/CI
+```bash
+cryload http://localhost:3000/api -n 1000 --json
 ```
 
 **Example output:**
@@ -54,12 +90,6 @@ Running load test @ http://localhost:3000/
 1696170 requests in 10.11s
 Requests/sec:  167803.62
 2xx: 1696170    Non-2xx: 0
-```
-
-**JSON output example:**
-
-```bash
-cryload http://localhost:3000 -n 1000 --json
 ```
 
 ## Contributing
