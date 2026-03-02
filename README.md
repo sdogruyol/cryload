@@ -1,8 +1,18 @@
-# cryload
+# Cryload - Powerful HTTP Benchmarking Tool
 
 [![CI](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml/badge.svg)](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml)
 
-HTTP benchmarking tool written in [Crystal](https://crystal-lang.org/).
+Cryload is a powerful, fast, and practical HTTP benchmarking tool for stress testing APIs and web services.
+
+Built with [Crystal](https://crystal-lang.org/) for high performance and low overhead.
+
+## Why Cryload?
+
+- High-throughput HTTP load testing with a lightweight CLI experience
+- Concurrent benchmarking with configurable connection count
+- Request count mode (`-n`) and duration mode (`-d`) support
+- Flexible request customization (method, headers, body, timeout, TLS)
+- JSON output mode for CI/CD and automation workflows
 
 ## Installation
 
@@ -14,6 +24,14 @@ shards build --release
 ```
 
 The binary will be at `bin/cryload`.
+
+## Quick Start
+
+Run your first benchmark in seconds:
+
+```bash
+bin/cryload http://localhost:3000 -n 10000 -c 100
+```
 
 ## Usage
 
@@ -97,6 +115,10 @@ Running load test @ http://localhost:3000/
 Requests/sec:  167803.62
 2xx: 1696170    Non-2xx: 0
 ```
+
+## Built With Crystal
+
+Cryload is written in [Crystal](https://crystal-lang.org/), combining Ruby-like developer ergonomics with compiled-language speed.
 
 ## Contributing
 
