@@ -12,7 +12,17 @@ module Cryload
     @@connection_error_mutex = Mutex.new
 
     # LoadGenerator: request mode (host, request_number, connections) or duration mode (host, connections, duration_seconds).
-    def initialize(@host : String, request_number : Int32? = nil, @connections : Int32 = 10, duration_seconds : Int32? = nil, @json_output : Bool = false)
+    def initialize(
+      @host : String,
+      request_number : Int32? = nil,
+      @connections : Int32 = 10,
+      duration_seconds : Int32? = nil,
+      @json_output : Bool = false,
+      @http_method : String = "GET",
+      @http_body : String? = nil,
+      @http_headers : HTTP::Headers = HTTP::Headers.new,
+      @timeout_seconds : Int32? = nil,
+    )
       @request_number = request_number || -1
       @duration_seconds = duration_seconds
       @duration_mode = !@duration_seconds.nil?
@@ -127,12 +137,18 @@ module Cryload
     # Creates the HTTP client
     private def create_http_client(uri)
       port = uri.port || (uri.scheme == "https" ? 443 : 80)
-      HTTP::Client.new uri.host.not_nil!, port: port, tls: uri.scheme == "https"
+      client = HTTP::Client.new uri.host.not_nil!, port: port, tls: uri.scheme == "https"
+      if (timeout = @timeout_seconds)
+        span = timeout.seconds
+        client.connect_timeout = span
+        client.read_timeout = span
+      end
+      client
     end
 
     # Creates a new request to the given URI
     private def create_request(client, uri)
-      request = Request.new client, uri
+      request = Request.new client, uri, @http_method, @http_headers, @http_body
       Cryload.stats << request
     rescue ex : Socket::Error | IO::Error | OpenSSL::SSL::Error
       host = uri.host || "localhost"

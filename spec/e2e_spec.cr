@@ -127,6 +127,10 @@ describe "Cryload E2E" do
     output.to_s.should contain("--numbers")
     output.to_s.should contain("--duration")
     output.to_s.should contain("--json")
+    output.to_s.should contain("--method")
+    output.to_s.should contain("--body")
+    output.to_s.should contain("--header")
+    output.to_s.should contain("--timeout")
   end
 
   it "exits with error when url is missing" do
@@ -219,6 +223,55 @@ describe "Cryload E2E" do
 
     output.to_s.should contain("Preparing to make it CRY for 1 seconds")
     output.to_s.should contain("requests in")
+  end
+
+  it "supports custom method, header and body" do
+    server = HTTP::Server.new do |context|
+      if context.request.method == "POST" &&
+         context.request.headers["X-Cryload-Test"]? == "ok" &&
+         context.request.body.try(&.gets_to_end) == "hello"
+        context.response.status_code = 200
+        context.response.print "OK"
+      else
+        context.response.status_code = 400
+        context.response.print "BAD"
+      end
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "5", "-m", "POST", "-H", "X-Cryload-Test: ok", "-b", "hello"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("2xx: 5")
+  end
+
+  it "exits with error on invalid header format" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "-H", "InvalidHeader"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Invalid header format")
+    process.exit_code.should eq(1)
   end
 
   it "outputs json with --json including p95 and p99" do

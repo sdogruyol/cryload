@@ -2,7 +2,7 @@
 module Cryload
   class Cli
     def initialize
-      @options = {} of Symbol => String | Int32 | Bool
+      @options = {} of Symbol => String | Int32 | Bool | Array(String)
       @show_help = false
       @parse_error = false
       prepare_op
@@ -18,18 +18,24 @@ module Cryload
       connections = @options[:connections].as(Int32)
       server = @options[:server].as(String)
       json_output = @options[:json]?.try(&.as(Bool)) || false
+      method = @options[:method].as(String)
+      body = @options[:body]?.try(&.as(String))
+      timeout_seconds = @options[:timeout]?.try(&.as(Int32))
+      headers = parse_headers(@options[:headers].as(Array(String)))
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
-        Cryload::LoadGenerator.new server, nil, connections, duration, json_output
+        Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds
       else
         numbers = @options[:numbers].as(Int32)
-        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output
+        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output, method, body, headers, timeout_seconds
       end
     end
 
     # Prepares OptionParser
     private def prepare_op
       @options[:connections] = 10
+      @options[:method] = "GET"
+      @options[:headers] = [] of String
       begin
         OptionParser.parse(ARGV) do |opts|
           opts.banner = "Usage: cryload <url> [options]"
@@ -44,6 +50,23 @@ module Cryload
 
           opts.on("-d SECONDS", "--duration SECONDS", "Duration of test in seconds (e.g. -d 10 for 10 seconds)") do |v|
             @options[:duration] = v.to_i
+          end
+
+          opts.on("-m METHOD", "--method METHOD", "HTTP method (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS)") do |v|
+            @options[:method] = v.upcase
+          end
+
+          opts.on("-b BODY", "--body BODY", "HTTP request body") do |v|
+            @options[:body] = v
+          end
+
+          opts.on("-H HEADER", "--header HEADER", "HTTP header, repeatable (e.g. -H 'Authorization: Bearer token')") do |v|
+            headers = @options[:headers].as(Array(String))
+            headers << v
+          end
+
+          opts.on("--timeout SECONDS", "Client connect/read timeout in seconds") do |v|
+            @options[:timeout] = v.to_i
           end
 
           opts.on("--json", "Output final results as JSON") do
@@ -93,6 +116,27 @@ module Cryload
         return false
       end
 
+      method = @options[:method].as(String)
+      valid_methods = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+      unless valid_methods.includes?(method)
+        STDERR.puts "Invalid HTTP method '#{method}'. Allowed: #{valid_methods.join(", ")}".colorize(:red)
+        return false
+      end
+
+      headers = @options[:headers].as(Array(String))
+      if headers.any? { |header| !valid_header?(header) }
+        STDERR.puts "Invalid header format. Use 'Key: Value' (e.g. -H 'Authorization: Bearer token').".colorize(:red)
+        return false
+      end
+
+      if @options.has_key?(:timeout)
+        timeout = @options[:timeout].as(Int32)
+        if timeout <= 0
+          STDERR.puts "Timeout must be greater than 0 seconds.".colorize(:red)
+          return false
+        end
+      end
+
       if @options.has_key?(:duration) && @options.has_key?(:numbers)
         STDERR.puts "Please specify only one mode: either '-n' or '-d'.".colorize(:red)
         return false
@@ -127,6 +171,26 @@ module Cryload
 
     private def json_output?
       @options[:json]?.try(&.as(Bool)) || false
+    end
+
+    private def parse_headers(raw_headers : Array(String))
+      headers = HTTP::Headers.new
+      raw_headers.each do |header|
+        parts = header.split(":", 2)
+        next if parts.size != 2
+        key = parts[0].strip
+        value = parts[1].strip
+        headers[key] = value
+      end
+      headers
+    end
+
+    private def valid_header?(header : String)
+      parts = header.split(":", 2)
+      return false if parts.size != 2
+      key = parts[0].strip
+      value = parts[1].strip
+      !key.empty? && !value.empty?
     end
 
     private def valid_url?(url : String)

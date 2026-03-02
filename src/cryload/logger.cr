@@ -24,20 +24,20 @@ module Cryload
 
       if s.json_output
         payload = {
-          "url" => s.url,
-          "duration_mode" => s.duration_mode,
-          "requests" => total,
-          "elapsed_seconds" => elapsed,
+          "url"                 => s.url,
+          "duration_mode"       => s.duration_mode,
+          "requests"            => total,
+          "elapsed_seconds"     => elapsed,
           "requests_per_second" => rps,
-          "latency_ms" => {
-            "avg" => avg_ms,
+          "latency_ms"          => {
+            "avg"   => avg_ms,
             "stdev" => stdev_ms,
-            "max" => max_ms,
-            "p95" => p95_ms,
-            "p99" => p99_ms,
+            "max"   => max_ms,
+            "p95"   => p95_ms,
+            "p99"   => p99_ms,
           },
           "status_counts" => {
-            "2xx" => s.ok_requests,
+            "2xx"     => s.ok_requests,
             "non_2xx" => s.not_ok_requests,
           },
         }
