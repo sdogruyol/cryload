@@ -3,6 +3,7 @@
 - **Resilience** — Transport errors are now counted and reported instead of aborting the run on the first failed request
 - **Reporting** — Added `p50`, `p90`, and `p999` percentiles plus response/error totals in final output
 - **Diagnostics** — Added exact HTTP status code breakdowns and transport error counts to human and JSON output
+- **Traffic Shaping** — Added `--rate` / `-q` to cap total request throughput in requests per second
 
 # 2.2.0 (02-03-2026)
 
