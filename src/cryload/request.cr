@@ -5,6 +5,8 @@ module Cryload
     @end_time : Time::Instant
     @status_code : Int32
 
+    getter :status_code
+
     def initialize(http_client, uri, method : String, headers : HTTP::Headers, body : String?)
       @start_time = Time.instant
       req = HTTP::Request.new(method, uri.request_target, headers, body)

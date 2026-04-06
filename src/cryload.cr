@@ -119,7 +119,7 @@ module Cryload
       end
 
       Logger.log_final
-      exit
+      exit Cryload.stats.final_exit_code
     end
 
     # Parses the host string and converts it to an URI
@@ -154,9 +154,12 @@ module Cryload
 
     # Creates a new request to the given URI
     private def create_request(client, uri)
+      started_at = Time.instant
       request = Request.new client, uri, @http_method, @http_headers, @http_body
       Cryload.stats << request
     rescue ex : Socket::Error | IO::Error | OpenSSL::SSL::Error
+      elapsed_ms = (Time.instant - started_at.not_nil!).total_seconds * 1000.0
+      Cryload.stats.record_error elapsed_ms, ex.class.name.to_s
       host = uri.host || "localhost"
       port = uri.port || (uri.scheme == "https" ? 443 : 80)
       msg = ex.message.to_s
@@ -164,11 +167,10 @@ module Cryload
         unless @@connection_error_printed
           STDERR.puts "Connection failed: Could not reach #{host}:#{port}"
           STDERR.puts "  → #{msg}"
-          STDERR.puts "  → Check if the server is running and accepting connections on this port."
+          STDERR.puts "  → Continuing and counting transport errors in the final report."
           @@connection_error_printed = true
         end
       end
-      exit 1
     end
   end
 end

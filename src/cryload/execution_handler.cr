@@ -13,7 +13,7 @@ module Cryload
       target = Cryload.stats.request_number.to_i64
       if size == target
         Logger.log_final
-        exit
+        exit Cryload.stats.final_exit_code
       elsif size > 0 && size != target &&
             (size % Cryload.stats.ongoing_check_number.to_i64 == 0) &&
             size > @@last_logged_count

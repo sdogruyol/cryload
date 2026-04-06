@@ -85,6 +85,7 @@ describe "Cryload E2E" do
     server.close
 
     output.to_s.should contain("Non-2xx: 5")
+    output.to_s.should contain("Status codes: 404: 5")
   end
 
   it "accepts -c/--connections for parallel requests" do
@@ -196,7 +197,9 @@ describe "Cryload E2E" do
 
     combined = output.to_s + error.to_s
     combined.should contain("Connection failed")
-    combined.should contain("Could not reach")
+    combined.should contain("Continuing and counting transport errors")
+    output.to_s.should contain("Errors: 5")
+    output.to_s.should contain("Transport errors: Socket::ConnectError: 5")
     process.exit_code.should eq(1)
   end
 
@@ -332,8 +335,33 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
     parsed = JSON.parse(output.to_s)
     parsed["requests"].as_i.should eq(20)
+    parsed["responses"].as_i.should eq(20)
+    parsed["transport_errors"].as_i.should eq(0)
+    parsed["latency_ms"]["p50"].as_f.should be >= 0.0
+    parsed["latency_ms"]["p90"].as_f.should be >= 0.0
     parsed["latency_ms"]["p95"].as_f.should be >= 0.0
     parsed["latency_ms"]["p99"].as_f.should be >= 0.0
+    parsed["latency_ms"]["p999"].as_f.should be >= 0.0
     parsed["status_counts"]["2xx"].as_i.should eq(20)
+    parsed["response_status_codes"]["200"].as_i.should eq(20)
+  end
+
+  it "outputs transport errors in json when target is unreachable" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:19999", "-n", "3", "--json"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    process.exit_code.should eq(1)
+    parsed = JSON.parse(output.to_s)
+    parsed["requests"].as_i.should eq(3)
+    parsed["responses"].as_i.should eq(0)
+    parsed["transport_errors"].as_i.should eq(3)
+    parsed["error_counts"]["Socket::ConnectError"].as_i.should eq(3)
   end
 end

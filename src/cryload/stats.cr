@@ -7,8 +7,10 @@ module Cryload
 
     @ongoing_check_number : Int32
     @total_request_count : Int64
+    @response_count : Int64
     @ok_requests : Int64
     @not_ok_requests : Int64
+    @transport_error_count : Int64
     @total_request_time_ms : Float64
     @min_request_time_ms : Float64
     @max_request_time_ms : Float64
@@ -16,6 +18,8 @@ module Cryload
     @m2_latency_ms : Float64
     @latency_histogram : Array(Int64)
     @histogram_overflow_count : Int64
+    @status_code_counts : Hash(Int32, Int64)
+    @error_counts : Hash(String, Int64)
     @mutex : Mutex
 
     getter :request_number
@@ -29,8 +33,10 @@ module Cryload
 
     def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @json_output : Bool = false)
       @total_request_count = 0_i64
+      @response_count = 0_i64
       @ok_requests = 0_i64
       @not_ok_requests = 0_i64
+      @transport_error_count = 0_i64
       @total_request_time_ms = 0.0
       @min_request_time_ms = Float64::INFINITY
       @max_request_time_ms = 0.0
@@ -38,6 +44,8 @@ module Cryload
       @m2_latency_ms = 0.0
       @latency_histogram = Array(Int64).new(HISTOGRAM_BUCKET_COUNT, 0_i64)
       @histogram_overflow_count = 0_i64
+      @status_code_counts = Hash(Int32, Int64).new(0_i64)
+      @error_counts = Hash(String, Int64).new(0_i64)
       @mutex = Mutex.new
       @ongoing_check_number = @duration_mode ? 100 : {@request_number // 10, 1}.max
     end
@@ -112,39 +120,88 @@ module Cryload
       percentile_request_time(99.0)
     end
 
-    def <<(request : Request)
-      record_request request.time_taken, request.is_ok?
+    def p50_request_time
+      percentile_request_time(50.0)
     end
 
-    def record_request(time_taken_ms : Float64, ok : Bool)
+    def p90_request_time
+      percentile_request_time(90.0)
+    end
+
+    def p999_request_time
+      percentile_request_time(99.9)
+    end
+
+    def response_count
+      @mutex.synchronize { @response_count }
+    end
+
+    def transport_error_count
+      @mutex.synchronize { @transport_error_count }
+    end
+
+    def status_code_counts
+      @mutex.synchronize { @status_code_counts.dup }
+    end
+
+    def error_counts
+      @mutex.synchronize { @error_counts.dup }
+    end
+
+    def final_exit_code
+      @mutex.synchronize do
+        @transport_error_count > 0 && @response_count == 0 ? 1 : 0
+      end
+    end
+
+    def <<(request : Request)
+      record_response request.time_taken, request.status_code
+    end
+
+    def record_response(time_taken_ms : Float64, status_code : Int32)
       @mutex.synchronize do
         @total_request_count += 1
-        @total_request_time_ms += time_taken_ms
-        @min_request_time_ms = {@min_request_time_ms, time_taken_ms}.min
-        @max_request_time_ms = {@max_request_time_ms, time_taken_ms}.max
-        if ok
+        @response_count += 1
+        @status_code_counts[status_code] += 1
+        if (200..299).includes?(status_code)
           @ok_requests += 1
         else
           @not_ok_requests += 1
         end
+        update_latency_metrics time_taken_ms
+      end
+    end
 
-        # Welford online variance: numerically stable and O(1) memory.
-        delta = time_taken_ms - @mean_latency_ms
-        @mean_latency_ms += delta / @total_request_count
-        delta2 = time_taken_ms - @mean_latency_ms
-        @m2_latency_ms += delta * delta2
-
-        bucket_index = (time_taken_ms / HISTOGRAM_BUCKET_SIZE_MS).floor.to_i
-        if bucket_index < HISTOGRAM_BUCKET_COUNT
-          @latency_histogram[bucket_index] += 1
-        else
-          @histogram_overflow_count += 1
-        end
+    def record_error(time_taken_ms : Float64, category : String)
+      @mutex.synchronize do
+        @total_request_count += 1
+        @transport_error_count += 1
+        @error_counts[category] += 1
+        update_latency_metrics time_taken_ms
       end
     end
 
     private def total_request_time
       @mutex.synchronize { @total_request_time_ms }
+    end
+
+    private def update_latency_metrics(time_taken_ms : Float64)
+      @total_request_time_ms += time_taken_ms
+      @min_request_time_ms = {@min_request_time_ms, time_taken_ms}.min
+      @max_request_time_ms = {@max_request_time_ms, time_taken_ms}.max
+
+      # Welford online variance: numerically stable and O(1) memory.
+      delta = time_taken_ms - @mean_latency_ms
+      @mean_latency_ms += delta / @total_request_count
+      delta2 = time_taken_ms - @mean_latency_ms
+      @m2_latency_ms += delta * delta2
+
+      bucket_index = (time_taken_ms / HISTOGRAM_BUCKET_SIZE_MS).floor.to_i
+      if bucket_index < HISTOGRAM_BUCKET_COUNT
+        @latency_histogram[bucket_index] += 1
+      else
+        @histogram_overflow_count += 1
+      end
     end
 
     private def percentile_request_time(percentile : Float64)
