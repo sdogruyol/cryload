@@ -4,6 +4,7 @@
 - **Reporting** — Added `p50`, `p90`, and `p999` percentiles plus response/error totals in final output
 - **Diagnostics** — Added exact HTTP status code breakdowns and transport error counts to human and JSON output
 - **Traffic Shaping** — Added `--rate` / `-q` to cap total request throughput in requests per second
+- **Performance** — Reduced hot-path coordination by batching worker-local metrics before merging them into global stats
 
 # 2.2.0 (02-03-2026)
 
