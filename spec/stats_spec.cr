@@ -61,6 +61,27 @@ describe Cryload::Stats do
     stats.final_exit_code.should eq(0)
   end
 
+  it "merges worker-local batches into global stats" do
+    stats = Cryload::Stats.new(10)
+    batch = Cryload::Stats::Batch.new
+
+    batch.record_response(10.0, 200)
+    batch.record_response(30.0, 503)
+    batch.record_error(20.0, "Socket::ConnectError")
+
+    stats.merge_batch(batch)
+
+    stats.total_request_count.should eq(3)
+    stats.response_count.should eq(2)
+    stats.transport_error_count.should eq(1)
+    stats.ok_requests.should eq(1)
+    stats.not_ok_requests.should eq(1)
+    stats.average_request_time.should be_close(20.0, 0.001)
+    stats.p50_request_time.should eq(20.0)
+    stats.status_code_counts.should eq({200 => 1_i64, 503 => 1_i64})
+    stats.error_counts.should eq({"Socket::ConnectError" => 1_i64})
+  end
+
   it "returns a failing exit code when every attempt is a transport error" do
     stats = Cryload::Stats.new(2)
 

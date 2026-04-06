@@ -5,6 +5,97 @@ module Cryload
     HISTOGRAM_MAX_MS         = 60_000
     HISTOGRAM_BUCKET_COUNT   = HISTOGRAM_MAX_MS + 1
 
+    # Worker-local stats batch flushed periodically to the global collector.
+    class Batch
+      @total_request_count : Int64
+      @response_count : Int64
+      @ok_requests : Int64
+      @not_ok_requests : Int64
+      @transport_error_count : Int64
+      @total_request_time_ms : Float64
+      @min_request_time_ms : Float64
+      @max_request_time_ms : Float64
+      @mean_latency_ms : Float64
+      @m2_latency_ms : Float64
+      @latency_buckets : Hash(Int32, Int64)
+      @histogram_overflow_count : Int64
+      @status_code_counts : Hash(Int32, Int64)
+      @error_counts : Hash(String, Int64)
+
+      getter :total_request_count
+      getter :response_count
+      getter :ok_requests
+      getter :not_ok_requests
+      getter :transport_error_count
+      getter :total_request_time_ms
+      getter :min_request_time_ms
+      getter :max_request_time_ms
+      getter :mean_latency_ms
+      getter :m2_latency_ms
+      getter :latency_buckets
+      getter :histogram_overflow_count
+      getter :status_code_counts
+      getter :error_counts
+
+      def initialize
+        @total_request_count = 0_i64
+        @response_count = 0_i64
+        @ok_requests = 0_i64
+        @not_ok_requests = 0_i64
+        @transport_error_count = 0_i64
+        @total_request_time_ms = 0.0
+        @min_request_time_ms = Float64::INFINITY
+        @max_request_time_ms = 0.0
+        @mean_latency_ms = 0.0
+        @m2_latency_ms = 0.0
+        @latency_buckets = Hash(Int32, Int64).new(0_i64)
+        @histogram_overflow_count = 0_i64
+        @status_code_counts = Hash(Int32, Int64).new(0_i64)
+        @error_counts = Hash(String, Int64).new(0_i64)
+      end
+
+      def empty?
+        @total_request_count == 0
+      end
+
+      def record_response(time_taken_ms : Float64, status_code : Int32)
+        @total_request_count += 1
+        @response_count += 1
+        @status_code_counts[status_code] += 1
+        if (200..299).includes?(status_code)
+          @ok_requests += 1
+        else
+          @not_ok_requests += 1
+        end
+        update_latency_metrics time_taken_ms
+      end
+
+      def record_error(time_taken_ms : Float64, category : String)
+        @total_request_count += 1
+        @transport_error_count += 1
+        @error_counts[category] += 1
+        update_latency_metrics time_taken_ms
+      end
+
+      private def update_latency_metrics(time_taken_ms : Float64)
+        @total_request_time_ms += time_taken_ms
+        @min_request_time_ms = {@min_request_time_ms, time_taken_ms}.min
+        @max_request_time_ms = {@max_request_time_ms, time_taken_ms}.max
+
+        delta = time_taken_ms - @mean_latency_ms
+        @mean_latency_ms += delta / @total_request_count
+        delta2 = time_taken_ms - @mean_latency_ms
+        @m2_latency_ms += delta * delta2
+
+        bucket_index = (time_taken_ms / HISTOGRAM_BUCKET_SIZE_MS).floor.to_i
+        if bucket_index < HISTOGRAM_BUCKET_COUNT
+          @latency_buckets[bucket_index] += 1
+        else
+          @histogram_overflow_count += 1
+        end
+      end
+    end
+
     @ongoing_check_number : Int32
     @total_request_count : Int64
     @response_count : Int64
@@ -159,25 +250,22 @@ module Cryload
     end
 
     def record_response(time_taken_ms : Float64, status_code : Int32)
-      @mutex.synchronize do
-        @total_request_count += 1
-        @response_count += 1
-        @status_code_counts[status_code] += 1
-        if (200..299).includes?(status_code)
-          @ok_requests += 1
-        else
-          @not_ok_requests += 1
-        end
-        update_latency_metrics time_taken_ms
-      end
+      batch = Batch.new
+      batch.record_response time_taken_ms, status_code
+      merge_batch batch
     end
 
     def record_error(time_taken_ms : Float64, category : String)
+      batch = Batch.new
+      batch.record_error time_taken_ms, category
+      merge_batch batch
+    end
+
+    def merge_batch(batch : Batch)
+      return if batch.empty?
+
       @mutex.synchronize do
-        @total_request_count += 1
-        @transport_error_count += 1
-        @error_counts[category] += 1
-        update_latency_metrics time_taken_ms
+        merge_batch_without_lock batch
       end
     end
 
@@ -185,22 +273,39 @@ module Cryload
       @mutex.synchronize { @total_request_time_ms }
     end
 
-    private def update_latency_metrics(time_taken_ms : Float64)
-      @total_request_time_ms += time_taken_ms
-      @min_request_time_ms = {@min_request_time_ms, time_taken_ms}.min
-      @max_request_time_ms = {@max_request_time_ms, time_taken_ms}.max
+    private def merge_batch_without_lock(batch : Batch)
+      previous_count = @total_request_count
+      batch_count = batch.total_request_count
 
-      # Welford online variance: numerically stable and O(1) memory.
-      delta = time_taken_ms - @mean_latency_ms
-      @mean_latency_ms += delta / @total_request_count
-      delta2 = time_taken_ms - @mean_latency_ms
-      @m2_latency_ms += delta * delta2
+      @total_request_count += batch_count
+      @response_count += batch.response_count
+      @ok_requests += batch.ok_requests
+      @not_ok_requests += batch.not_ok_requests
+      @transport_error_count += batch.transport_error_count
+      @total_request_time_ms += batch.total_request_time_ms
+      @min_request_time_ms = @min_request_time_ms.finite? ? {@min_request_time_ms, batch.min_request_time_ms}.min : batch.min_request_time_ms
+      @max_request_time_ms = {@max_request_time_ms, batch.max_request_time_ms}.max
 
-      bucket_index = (time_taken_ms / HISTOGRAM_BUCKET_SIZE_MS).floor.to_i
-      if bucket_index < HISTOGRAM_BUCKET_COUNT
-        @latency_histogram[bucket_index] += 1
-      else
-        @histogram_overflow_count += 1
+      if previous_count == 0
+        @mean_latency_ms = batch.mean_latency_ms
+        @m2_latency_ms = batch.m2_latency_ms
+      elsif batch_count > 0
+        combined_count = @total_request_count
+        delta = batch.mean_latency_ms - @mean_latency_ms
+        @mean_latency_ms += delta * batch_count / combined_count
+        @m2_latency_ms += batch.m2_latency_ms + delta * delta * previous_count * batch_count / combined_count
+      end
+
+      batch.latency_buckets.each do |bucket_index, count|
+        @latency_histogram[bucket_index] += count
+      end
+      @histogram_overflow_count += batch.histogram_overflow_count
+
+      batch.status_code_counts.each do |status_code, count|
+        @status_code_counts[status_code] += count
+      end
+      batch.error_counts.each do |category, count|
+        @error_counts[category] += count
       end
     end
 
