@@ -5,6 +5,34 @@ require "option_parser"
 require "json"
 
 module Cryload
+  class RateLimiter
+    @interval : Time::Span
+    @next_slot : Time::Instant
+    @mutex : Mutex
+
+    def initialize(rate_limit : Int32)
+      @interval = Time::Span.new(nanoseconds: (1_000_000_000.0 / rate_limit).round.to_i64)
+      @next_slot = Time.instant
+      @mutex = Mutex.new
+    end
+
+    def acquire(deadline : Time::Instant? = nil) : Bool
+      scheduled_at = Time.instant
+      now = Time.instant
+
+      @mutex.synchronize do
+        now = Time.instant
+        scheduled_at = @next_slot > now ? @next_slot : now
+        return false if deadline && scheduled_at >= deadline
+        @next_slot = scheduled_at + @interval
+      end
+
+      sleep_for = scheduled_at - now
+      sleep sleep_for if sleep_for.positive?
+      true
+    end
+  end
+
   # LoadGenerator is the main class in Cryload. It's responsible for generating
   # the requests and other major stuff.
   class LoadGenerator
@@ -57,15 +85,13 @@ module Cryload
     end
 
     # Spawns a worker that runs for duration_seconds, making requests until time is up.
-    def spawn_duration_worker(stats_channel, done_channel, uri, rate_limiter : Channel(Nil)?)
+    def spawn_duration_worker(stats_channel, done_channel, uri, rate_limiter : RateLimiter?)
       spawn do
         client = create_http_client uri
         deadline = Time.instant + @duration_seconds.not_nil!.seconds
         local_batch = Stats::Batch.new
 
-        while Time.instant < deadline
-          wait_for_rate_token rate_limiter
-          break if Time.instant >= deadline
+        while acquire_rate_slot(rate_limiter, deadline)
           create_request(client, uri, local_batch)
           local_batch = flush_batch_if_needed stats_channel, local_batch
         end
@@ -76,14 +102,14 @@ module Cryload
     end
 
     # Spawns a worker that makes its share of requests.
-    def spawn_request_worker(stats_channel, done_channel, uri, worker_index, total_workers, rate_limiter : Channel(Nil)?)
+    def spawn_request_worker(stats_channel, done_channel, uri, worker_index, total_workers, rate_limiter : RateLimiter?)
       spawn do
         client = create_http_client uri
         requests_for_this_worker = requests_per_worker worker_index, total_workers
         local_batch = Stats::Batch.new
 
         requests_for_this_worker.times do
-          wait_for_rate_token rate_limiter
+          acquire_rate_slot rate_limiter
           create_request(client, uri, local_batch)
           local_batch = flush_batch_if_needed stats_channel, local_batch
         end
@@ -100,24 +126,14 @@ module Cryload
       worker_index < remainder ? base + 1 : base
     end
 
-    private def create_rate_limiter : Channel(Nil)?
-      return nil unless rate_limit = @rate_limit
-
-      token_channel = Channel(Nil).new(1)
-      interval_seconds = 1.0 / rate_limit
-
-      spawn do
-        loop do
-          token_channel.send nil
-          sleep interval_seconds
-        end
-      end
-
-      token_channel
+    private def create_rate_limiter : RateLimiter?
+      @rate_limit.try { |rate_limit| RateLimiter.new(rate_limit) }
     end
 
-    private def wait_for_rate_token(rate_limiter : Channel(Nil)?)
-      rate_limiter.try &.receive
+    private def acquire_rate_slot(rate_limiter : RateLimiter?, deadline : Time::Instant? = nil) : Bool
+      return rate_limiter.acquire(deadline) if rate_limiter
+      return Time.instant < deadline if deadline
+      true
     end
 
     private def flush_batch_if_needed(stats_channel, local_batch : Stats::Batch)

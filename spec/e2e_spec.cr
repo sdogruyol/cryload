@@ -390,6 +390,37 @@ describe "Cryload E2E" do
     parsed["requests"].as_i.should eq(6)
     parsed["responses"].as_i.should eq(6)
     parsed["elapsed_seconds"].as_f.should be >= 1.5
+    parsed["elapsed_seconds"].as_f.should be < 2.4
+    parsed["requests_per_second"].as_f.should be >= 2.5
+  end
+
+  it "keeps duration mode close to target time with --rate" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-d", "2", "-c", "20", "--rate", "20", "--json"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    parsed = JSON.parse(output.to_s)
+    parsed["elapsed_seconds"].as_f.should be < 2.3
+    parsed["requests"].as_i.should be >= 38
+    parsed["requests_per_second"].as_f.should be >= 18.0
   end
 
   it "outputs transport errors in json when target is unreachable" do
