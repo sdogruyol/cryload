@@ -1,3 +1,9 @@
+# Unreleased
+
+- **Resilience** — Transport errors are now counted and reported instead of aborting the run on the first failed request
+- **Reporting** — Added `p50`, `p90`, and `p999` percentiles plus response/error totals in final output
+- **Diagnostics** — Added exact HTTP status code breakdowns and transport error counts to human and JSON output
+
 # 2.2.0 (02-03-2026)
 
 - Use `Process.on_terminate` to fix Windows build
