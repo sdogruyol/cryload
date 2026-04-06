@@ -14,6 +14,7 @@ Built with [Crystal](https://crystal-lang.org/) for high performance and low ove
 - Flexible request customization (method, headers, body, timeout, TLS)
 - JSON output mode for CI/CD and automation workflows
 - Richer latency percentiles plus response/error breakdowns
+- Optional global request rate limiting with `--rate`
 
 ## Installation
 
@@ -62,6 +63,7 @@ cryload <url> [options]
 | `-b`, `--body` | HTTP request body |
 | `-H`, `--header` | HTTP header, repeatable (`-H "Key: Value"`) |
 | `--timeout` | Client connect/read timeout in seconds |
+| `-q`, `--rate` | Total request rate limit in requests/sec |
 | `--insecure` | Accept invalid TLS certificates for HTTPS |
 | `--json` | Print final result as JSON |
 | `-h`, `--help` | Show help |
@@ -101,6 +103,11 @@ cryload http://localhost:3000/api -n 300 -m POST -H "Authorization: Bearer token
 Duration mode + timeout
 ```bash
 cryload http://localhost:3000/api -d 15 -c 50 --timeout 3
+```
+
+Rate-limited run at 100 requests/sec total
+```bash
+cryload http://localhost:3000/api -n 1000 -c 50 --rate 100
 ```
 
 HTTPS with self-signed cert (skip TLS verification)
