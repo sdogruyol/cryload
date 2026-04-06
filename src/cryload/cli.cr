@@ -21,14 +21,15 @@ module Cryload
       method = @options[:method].as(String)
       body = @options[:body]?.try(&.as(String))
       timeout_seconds = @options[:timeout]?.try(&.as(Int32))
+      rate_limit = @options[:rate]?.try(&.as(Int32))
       insecure = @options[:insecure]?.try(&.as(Bool)) || false
       headers = parse_headers(@options[:headers].as(Array(String)))
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
-        Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds, insecure
+        Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds, insecure, rate_limit
       else
         numbers = @options[:numbers].as(Int32)
-        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output, method, body, headers, timeout_seconds, insecure
+        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output, method, body, headers, timeout_seconds, insecure, rate_limit
       end
     end
 
@@ -68,6 +69,10 @@ module Cryload
 
           opts.on("--timeout SECONDS", "Client connect/read timeout in seconds") do |v|
             @options[:timeout] = v.to_i
+          end
+
+          opts.on("-q RATE", "--rate RATE", "Total request rate limit in requests/sec") do |v|
+            @options[:rate] = v.to_i
           end
 
           opts.on("--insecure", "Accept invalid TLS certificates (HTTPS only)") do
@@ -138,6 +143,14 @@ module Cryload
         timeout = @options[:timeout].as(Int32)
         if timeout <= 0
           STDERR.puts "Timeout must be greater than 0 seconds.".colorize(:red)
+          return false
+        end
+      end
+
+      if @options.has_key?(:rate)
+        rate = @options[:rate].as(Int32)
+        if rate <= 0
+          STDERR.puts "Rate must be greater than 0 requests/sec.".colorize(:red)
           return false
         end
       end

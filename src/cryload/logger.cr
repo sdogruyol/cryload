@@ -2,9 +2,10 @@ module Cryload
   # Singleton class which handles all the logging
   class Logger
     # Logs the test header
-    def self.log_header(url : String, duration_sec : Int32?, request_count : Int32?, connections : Int32)
+    def self.log_header(url : String, duration_sec : Int32?, request_count : Int32?, connections : Int32, rate_limit : Int32?)
       return if Cryload.stats.json_output
       puts "Running load test @ #{url}"
+      puts "Rate limit: #{rate_limit} req/s" if rate_limit
       puts
     end
 

@@ -23,6 +23,7 @@ module Cryload
       @http_headers : HTTP::Headers = HTTP::Headers.new,
       @timeout_seconds : Int32? = nil,
       @insecure : Bool = false,
+      @rate_limit : Int32? = nil,
     )
       @request_number = request_number || -1
       @duration_seconds = duration_seconds
@@ -30,7 +31,7 @@ module Cryload
 
       Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @json_output
       worker_count = @duration_mode ? {1, @connections}.max : {1, {@connections, @request_number}.min}.max
-      Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count
+      Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count, @rate_limit
       request_channel, done_channel, worker_count = generate_request_channel
       spawn_receive_loop request_channel, done_channel, worker_count
     end
@@ -40,13 +41,14 @@ module Cryload
       request_channel = Channel(Nil).new
       done_channel = Channel(Nil).new
       uri = parse_uri
+      rate_limiter = create_rate_limiter
       worker_count = @duration_mode ? {1, @connections}.max : {1, {@connections, @request_number}.min}.max
 
       worker_count.times do |i|
         if @duration_mode
-          spawn_duration_worker request_channel, done_channel, uri
+          spawn_duration_worker request_channel, done_channel, uri, rate_limiter
         else
-          spawn_request_worker request_channel, uri, i, worker_count
+          spawn_request_worker request_channel, uri, i, worker_count, rate_limiter
         end
       end
 
@@ -54,12 +56,14 @@ module Cryload
     end
 
     # Spawns a worker that runs for duration_seconds, making requests until time is up.
-    def spawn_duration_worker(request_channel, done_channel, uri)
+    def spawn_duration_worker(request_channel, done_channel, uri, rate_limiter : Channel(Nil)?)
       spawn do
         client = create_http_client uri
         deadline = Time.instant + @duration_seconds.not_nil!.seconds
 
         while Time.instant < deadline
+          wait_for_rate_token rate_limiter
+          break if Time.instant >= deadline
           create_request(client, uri)
           request_channel.send nil
         end
@@ -69,12 +73,13 @@ module Cryload
     end
 
     # Spawns a worker that makes its share of requests.
-    def spawn_request_worker(request_channel, uri, worker_index, total_workers)
+    def spawn_request_worker(request_channel, uri, worker_index, total_workers, rate_limiter : Channel(Nil)?)
       spawn do
         client = create_http_client uri
         requests_for_this_worker = requests_per_worker worker_index, total_workers
 
         requests_for_this_worker.times do
+          wait_for_rate_token rate_limiter
           create_request(client, uri)
           request_channel.send nil
         end
@@ -86,6 +91,26 @@ module Cryload
       base = @request_number // total_workers
       remainder = @request_number % total_workers
       worker_index < remainder ? base + 1 : base
+    end
+
+    private def create_rate_limiter : Channel(Nil)?
+      return nil unless rate_limit = @rate_limit
+
+      token_channel = Channel(Nil).new(1)
+      interval_seconds = 1.0 / rate_limit
+
+      spawn do
+        loop do
+          token_channel.send nil
+          sleep interval_seconds
+        end
+      end
+
+      token_channel
+    end
+
+    private def wait_for_rate_token(rate_limiter : Channel(Nil)?)
+      rate_limiter.try &.receive
     end
 
     # Spawns the receiver loop. In request mode: receive until count reached.

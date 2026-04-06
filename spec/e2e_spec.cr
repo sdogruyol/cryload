@@ -132,6 +132,7 @@ describe "Cryload E2E" do
     output.to_s.should contain("--body")
     output.to_s.should contain("--header")
     output.to_s.should contain("--timeout")
+    output.to_s.should contain("--rate")
     output.to_s.should contain("--insecure")
   end
 
@@ -310,6 +311,22 @@ describe "Cryload E2E" do
     process.exit_code.should eq(1)
   end
 
+  it "exits with error on non-positive rate" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--rate", "0"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Rate must be greater than 0 requests/sec")
+    process.exit_code.should eq(1)
+  end
+
   it "outputs json with --json including p95 and p99" do
     server = HTTP::Server.new do |context|
       context.response.status_code = 200
@@ -344,6 +361,35 @@ describe "Cryload E2E" do
     parsed["latency_ms"]["p999"].as_f.should be >= 0.0
     parsed["status_counts"]["2xx"].as_i.should eq(20)
     parsed["response_status_codes"]["200"].as_i.should eq(20)
+  end
+
+  it "rate limits request mode with --rate" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "6", "-c", "6", "--rate", "3", "--json"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    parsed = JSON.parse(output.to_s)
+    parsed["requests"].as_i.should eq(6)
+    parsed["responses"].as_i.should eq(6)
+    parsed["elapsed_seconds"].as_f.should be >= 1.5
   end
 
   it "outputs transport errors in json when target is unreachable" do
