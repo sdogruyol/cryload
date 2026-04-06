@@ -13,6 +13,7 @@ Built with [Crystal](https://crystal-lang.org/) for high performance and low ove
 - Request count mode (`-n`) and duration mode (`-d`) support
 - Flexible request customization (method, headers, body, timeout, TLS)
 - JSON output mode for CI/CD and automation workflows
+- Richer latency percentiles plus response/error breakdowns
 
 ## Installation
 
@@ -120,11 +121,14 @@ Running load test @ http://localhost:3000/
 
   Latency (ms)      avg: 0.53   stdev: 0.76   max: 35.39
 
-  Percentiles (ms)  p95: 0.96   p99: 1.34
+  Percentiles (ms)  p50: 0.41   p90: 0.81   p95: 0.96
+                    p99: 1.34   p999: 3.72
 
 1696170 requests in 10.11s
 Requests/sec:  167803.62
+Responses: 1696170    Errors: 0
 2xx: 1696170    Non-2xx: 0
+Status codes: 200: 1696170
 ```
 
 ## Built With Crystal
