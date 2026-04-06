@@ -1,4 +1,4 @@
-# Unreleased
+# 2.3.0 (06-04-2026)
 
 - **Resilience** — Transport errors are now counted and reported instead of aborting the run on the first failed request
 - **Reporting** — Added `p50`, `p90`, and `p999` percentiles plus response/error totals in final output
