@@ -36,6 +36,7 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
     output.to_s.should contain("Preparing to make it CRY for 10 requests")
     output.to_s.should contain("Successful:")
+    output.to_s.should contain("min:")
     output.to_s.should contain("requests in")
   end
 
@@ -657,15 +658,19 @@ describe "Cryload E2E" do
     parsed["requests"].as_i.should eq(20)
     parsed["responses"].as_i.should eq(20)
     parsed["transport_errors"].as_i.should eq(0)
+    parsed["latency_ms"]["min"].as_f.should be >= 0.0
     parsed["latency_ms"]["p50"].as_f.should be >= 0.0
     parsed["latency_ms"]["p90"].as_f.should be >= 0.0
     parsed["latency_ms"]["p95"].as_f.should be >= 0.0
     parsed["latency_ms"]["p99"].as_f.should be >= 0.0
     parsed["latency_ms"]["p999"].as_f.should be >= 0.0
     parsed["status_counts"]["successful"].as_i.should eq(20)
+    parsed["status_counts"]["successful_percent"].as_f.should eq(100.0)
     parsed["status_counts"]["failed"].as_i.should eq(0)
+    parsed["status_counts"]["failed_percent"].as_f.should eq(0.0)
     parsed["success_statuses"][0].as_s.should eq("200-299")
     parsed["response_status_codes"]["200"].as_i.should eq(20)
+    parsed["transport_error_percent"].as_f.should eq(0.0)
   end
 
   it "outputs csv with --output-format csv" do
@@ -693,7 +698,7 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
     lines = output.to_s.lines.map(&.strip).reject(&.empty?)
     lines.size.should eq(2)
-    lines[0].should contain("url,duration_mode,requests,responses")
+    lines[0].should contain("url,duration_mode,requests,responses,transport_errors,elapsed_seconds,requests_per_second,latency_avg_ms,latency_min_ms")
     lines[1].should contain("false,5,5,0")
   end
 
@@ -799,6 +804,7 @@ describe "Cryload E2E" do
     parsed["requests"].as_i.should eq(3)
     parsed["responses"].as_i.should eq(0)
     parsed["transport_errors"].as_i.should eq(3)
+    parsed["transport_error_percent"].as_f.should eq(100.0)
     parsed["error_counts"]["Socket::ConnectError"].as_i.should eq(3)
   end
 end
