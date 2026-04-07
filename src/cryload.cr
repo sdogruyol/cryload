@@ -3,8 +3,27 @@ require "http"
 require "colorize"
 require "option_parser"
 require "json"
+require "base64"
 
 module Cryload
+  DEFAULT_MAX_REDIRECTS = 5
+
+  def self.create_http_client(uri, timeout_seconds : Int32? = nil, insecure : Bool = false)
+    port = uri.port || (uri.scheme == "https" ? 443 : 80)
+    tls_context = if uri.scheme == "https"
+                    insecure ? OpenSSL::SSL::Context::Client.insecure : true
+                  else
+                    false
+                  end
+    client = HTTP::Client.new uri.host.not_nil!, port: port, tls: tls_context
+    if (timeout = timeout_seconds)
+      span = timeout.seconds
+      client.connect_timeout = span
+      client.read_timeout = span
+    end
+    client
+  end
+
   class RateLimiter
     @interval : Time::Span
     @next_slot : Time::Instant
@@ -46,19 +65,21 @@ module Cryload
       request_number : Int32? = nil,
       @connections : Int32 = 10,
       duration_seconds : Int32? = nil,
-      @json_output : Bool = false,
+      @output_format : String = "text",
       @http_method : String = "GET",
       @http_body : String? = nil,
       @http_headers : HTTP::Headers = HTTP::Headers.new,
       @timeout_seconds : Int32? = nil,
       @insecure : Bool = false,
       @rate_limit : Int32? = nil,
+      @follow_redirects : Bool = false,
+      @success_status_ranges : Array(Range(Int32, Int32)) = [200..299],
     )
       @request_number = request_number || -1
       @duration_seconds = duration_seconds
       @duration_mode = !@duration_seconds.nil?
 
-      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @json_output
+      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @output_format, @success_status_ranges
       worker_count = @duration_mode ? {1, @connections}.max : {1, {@connections, @request_number}.min}.max
       Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count, @rate_limit
       request_channel, done_channel, worker_count = generate_request_channel
@@ -89,11 +110,13 @@ module Cryload
       spawn do
         client = create_http_client uri
         deadline = Time.instant + @duration_seconds.not_nil!.seconds
-        local_batch = Stats::Batch.new
+        local_batch = Stats::Batch.new(@success_status_ranges)
 
         while acquire_rate_slot(rate_limiter, deadline)
           create_request(client, uri, local_batch)
-          local_batch = flush_batch_if_needed stats_channel, local_batch
+          # Flush every completed request in duration mode so the receiver can
+          # stop cleanly at the deadline without losing already-finished work.
+          local_batch = flush_batch stats_channel, local_batch
         end
 
         flush_batch stats_channel, local_batch
@@ -106,7 +129,7 @@ module Cryload
       spawn do
         client = create_http_client uri
         requests_for_this_worker = requests_per_worker worker_index, total_workers
-        local_batch = Stats::Batch.new
+        local_batch = Stats::Batch.new(@success_status_ranges)
 
         requests_for_this_worker.times do
           acquire_rate_slot rate_limiter
@@ -143,10 +166,10 @@ module Cryload
     end
 
     private def flush_batch(stats_channel, local_batch : Stats::Batch)
-      return Stats::Batch.new if local_batch.empty?
+      return Stats::Batch.new(@success_status_ranges) if local_batch.empty?
 
       stats_channel.send local_batch
-      Stats::Batch.new
+      Stats::Batch.new(@success_status_ranges)
     end
 
     # Spawns the receiver loop. In request mode: receive until count reached.
@@ -178,9 +201,13 @@ module Cryload
     end
 
     def spawn_receive_loop_duration(stats_channel, done_channel, worker_count)
+      deadline = Cryload.stats.benchmark_start + @duration_seconds.not_nil!.seconds
       done_count = 0
 
       loop do
+        remaining = deadline - Time.instant
+        break unless remaining.positive?
+
         select
         when batch = stats_channel.receive
           Cryload.stats.merge_batch batch
@@ -188,6 +215,8 @@ module Cryload
         when done_channel.receive
           done_count += 1
           break if done_count >= worker_count
+        when timeout(remaining)
+          break
         end
       end
 
@@ -216,20 +245,14 @@ module Cryload
                     else
                       false
                     end
-      client = HTTP::Client.new uri.host.not_nil!, port: port, tls: tls_context
-      if (timeout = @timeout_seconds)
-        span = timeout.seconds
-        client.connect_timeout = span
-        client.read_timeout = span
-      end
-      client
+      Cryload.create_http_client uri, @timeout_seconds, @insecure
     end
 
     # Creates a new request to the given URI
     private def create_request(client, uri, local_batch : Stats::Batch)
       started_at = Time.instant
-      request = Request.new client, uri, @http_method, @http_headers, @http_body
-      local_batch.record_response request.time_taken, request.status_code
+      request = Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects
+      local_batch.record_response request.time_taken, request.status_code, request.response_bytes
     rescue ex : Socket::Error | IO::Error | OpenSSL::SSL::Error
       elapsed_ms = (Time.instant - started_at.not_nil!).total_seconds * 1000.0
       local_batch.record_error elapsed_ms, ex.class.name.to_s

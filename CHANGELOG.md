@@ -1,3 +1,57 @@
+# 3.0.0 (07-04-2026)
+
+- **Request Ergonomics** — Added `--body-file` for reading request payloads from disk
+
+```bash
+cryload http://localhost:3000/api -n 500 -m POST -H "Content-Type: application/json" --body-file payload.json
+```
+
+- **Request Ergonomics** — Added `--basic-auth` / `-a` for Basic authentication
+
+```bash
+cryload http://localhost:3000/private -n 300 --basic-auth username:password
+```
+
+- **Request Ergonomics** — Added `--user-agent` for User-Agent overrides
+
+```bash
+cryload http://localhost:3000 -n 300 --user-agent cryload-test/1.0
+```
+
+- **Request Ergonomics** — Added `--host-header` for explicit Host header control
+
+```bash
+cryload http://127.0.0.1:3000 -n 300 --host-header api.internal
+```
+
+- **Request Ergonomics** — Added `-L` / `--follow-redirects` for redirect-aware benchmarking
+
+```bash
+cryload http://localhost:3000/redirect -n 100 -L
+```
+
+- **Output Modes** — Added `--output-format` with `text`, `json`, `csv`, and `quiet` modes while keeping `--json` as a compatibility shortcut
+
+```bash
+cryload http://localhost:3000/api -n 1000 --output-format csv
+cryload http://localhost:3000/health -n 10 --output-format quiet
+```
+
+- **Success Criteria** — Added `--success-status` so custom HTTP codes/ranges can count as successful responses
+
+```bash
+cryload http://localhost:3000/redirect -n 100 --success-status 200-299,302
+```
+
+- **Reporting Polish** — Text/JSON/CSV reports now include minimum latency plus success/failure and transport error percentages
+- **Reporting Polish** — Human-readable text output is now grouped into clearer header/summary/latency/status sections
+- **Latency Visualization** — Added rolled-up response time histogram and distribution reporting in text/JSON output
+- **Transfer Metrics** — Added total response data, size per request, and transfer per second reporting in text/JSON/CSV output
+- **Status Breakdown** — Added richer status/error distribution reporting with counts and percentages in text/JSON/CSV output
+- **Latency Naming** — Added `fastest` / `slowest` latency labels alongside `min` / `max` for easier comparison with `hey` / `oha`
+- **Output Consistency** — Standardized section names and added normalized `summary`, `latency`, and `status` objects/headers across text/JSON/CSV output
+
+
 # 2.3.0 (06-04-2026)
 
 - **Resilience** — Transport errors are now counted and reported instead of aborting the run on the first failed request

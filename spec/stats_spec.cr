@@ -18,9 +18,9 @@ describe Cryload::Stats do
   it "updates aggregate counters and latency stats" do
     stats = Cryload::Stats.new(10)
 
-    stats.record_response(10.0, 200)
-    stats.record_response(20.0, 404)
-    stats.record_response(30.0, 201)
+    stats.record_response(10.0, 200, 100)
+    stats.record_response(20.0, 404, 50)
+    stats.record_response(30.0, 201, 150)
 
     stats.empty?.should be_false
     stats.total_request_count.should eq(3)
@@ -29,9 +29,21 @@ describe Cryload::Stats do
     stats.ok_requests.should eq(2)
     stats.not_ok_requests.should eq(1)
     stats.average_request_time.should be_close(20.0, 0.001)
+    stats.total_response_bytes.should eq(300)
+    stats.average_bytes_per_response.should be_close(100.0, 0.001)
     stats.max_request_time.should be_close(30.0, 0.001)
     stats.latency_stdev.should be_close(8.1649, 0.001)
     stats.status_code_counts.should eq({200 => 1_i64, 201 => 1_i64, 404 => 1_i64})
+  end
+
+  it "supports custom success status ranges" do
+    stats = Cryload::Stats.new(10, success_status_ranges: [200..204, 301..304])
+
+    stats.record_response(10.0, 302, 10)
+    stats.record_response(20.0, 404, 20)
+
+    stats.ok_requests.should eq(1)
+    stats.not_ok_requests.should eq(1)
   end
 
   it "calculates p95 and p99 from histogram" do
@@ -46,6 +58,32 @@ describe Cryload::Stats do
     stats.p95_request_time.should eq(95.0)
     stats.p99_request_time.should eq(99.0)
     stats.p999_request_time.should eq(100.0)
+  end
+
+  it "keeps sub-millisecond percentiles above zero" do
+    stats = Cryload::Stats.new(10)
+
+    [0.12, 0.24, 0.36, 0.48].each do |latency_ms|
+      stats.record_response(latency_ms, 200)
+    end
+
+    stats.p50_request_time.should be_close(0.3, 0.1)
+    stats.p99_request_time.should be >= 0.4
+  end
+
+  it "builds rolled-up histogram bins for reporting" do
+    stats = Cryload::Stats.new(100)
+
+    (1..100).each do |latency_ms|
+      stats.record_response(latency_ms.to_f, 200)
+    end
+
+    bins = stats.latency_histogram_bins(5)
+
+    bins.size.should eq(5)
+    bins.sum { |bin| bin[:count] }.should eq(100)
+    bins.first[:start_ms].should be_close(1.0, 0.01)
+    bins.last[:end_ms].should be_close(100.0, 0.01)
   end
 
   it "tracks transport errors without losing run progress" do
@@ -66,13 +104,14 @@ describe Cryload::Stats do
     batch = Cryload::Stats::Batch.new
 
     batch.record_response(10.0, 200)
-    batch.record_response(30.0, 503)
+    batch.record_response(30.0, 503, 120)
     batch.record_error(20.0, "Socket::ConnectError")
 
     stats.merge_batch(batch)
 
     stats.total_request_count.should eq(3)
     stats.response_count.should eq(2)
+    stats.total_response_bytes.should eq(120)
     stats.transport_error_count.should eq(1)
     stats.ok_requests.should eq(1)
     stats.not_ok_requests.should eq(1)
@@ -89,5 +128,14 @@ describe Cryload::Stats do
     stats.record_error(8.0, "Socket::ConnectError")
 
     stats.final_exit_code.should eq(1)
+  end
+
+  it "uses actual elapsed time for throughput calculations" do
+    stats = Cryload::Stats.new(10, duration_mode: true, benchmark_start: Time.instant - 2.seconds)
+
+    stats.record_response(100.0, 200)
+
+    stats.wall_clock_seconds.should be_close(2.0, 0.001)
+    stats.request_per_second.should be_close(0.5, 0.001)
   end
 end

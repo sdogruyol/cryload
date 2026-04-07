@@ -1,14 +1,16 @@
 module Cryload
   # Stats holder for the benchmark
   class Stats
-    HISTOGRAM_BUCKET_SIZE_MS =    1.0
+    HISTOGRAM_BUCKET_SIZE_MS =    0.1
     HISTOGRAM_MAX_MS         = 60_000
-    HISTOGRAM_BUCKET_COUNT   = HISTOGRAM_MAX_MS + 1
+    HISTOGRAM_BUCKET_COUNT   = (HISTOGRAM_MAX_MS / HISTOGRAM_BUCKET_SIZE_MS).to_i + 1
 
     # Worker-local stats batch flushed periodically to the global collector.
     class Batch
+      @success_status_ranges : Array(Range(Int32, Int32))
       @total_request_count : Int64
       @response_count : Int64
+      @total_response_bytes : Int64
       @ok_requests : Int64
       @not_ok_requests : Int64
       @transport_error_count : Int64
@@ -24,6 +26,7 @@ module Cryload
 
       getter :total_request_count
       getter :response_count
+      getter :total_response_bytes
       getter :ok_requests
       getter :not_ok_requests
       getter :transport_error_count
@@ -37,9 +40,10 @@ module Cryload
       getter :status_code_counts
       getter :error_counts
 
-      def initialize
+      def initialize(@success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
         @total_request_count = 0_i64
         @response_count = 0_i64
+        @total_response_bytes = 0_i64
         @ok_requests = 0_i64
         @not_ok_requests = 0_i64
         @transport_error_count = 0_i64
@@ -58,11 +62,12 @@ module Cryload
         @total_request_count == 0
       end
 
-      def record_response(time_taken_ms : Float64, status_code : Int32)
+      def record_response(time_taken_ms : Float64, status_code : Int32, response_bytes : Int64 = 0_i64)
         @total_request_count += 1
         @response_count += 1
+        @total_response_bytes += response_bytes
         @status_code_counts[status_code] += 1
-        if (200..299).includes?(status_code)
+        if success_status?(status_code)
           @ok_requests += 1
         else
           @not_ok_requests += 1
@@ -94,11 +99,16 @@ module Cryload
           @histogram_overflow_count += 1
         end
       end
+
+      private def success_status?(status_code : Int32)
+        @success_status_ranges.any? { |status_range| status_range.includes?(status_code) }
+      end
     end
 
     @ongoing_check_number : Int32
     @total_request_count : Int64
     @response_count : Int64
+    @total_response_bytes : Int64
     @ok_requests : Int64
     @not_ok_requests : Int64
     @transport_error_count : Int64
@@ -118,13 +128,15 @@ module Cryload
     getter :duration_mode
     getter :benchmark_start
     getter :url
-    getter :json_output
+    getter :output_format
+    getter :success_status_ranges
 
     TIME_IN_MILISECONDS = 1000
 
-    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @json_output : Bool = false)
+    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @output_format : String = "text", @success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
       @total_request_count = 0_i64
       @response_count = 0_i64
+      @total_response_bytes = 0_i64
       @ok_requests = 0_i64
       @not_ok_requests = 0_i64
       @transport_error_count = 0_i64
@@ -174,11 +186,11 @@ module Cryload
     def request_per_second
       count = total_request_count
       return 0.0 if count == 0
-      elapsed = (Time.instant - @benchmark_start).total_seconds
+      elapsed = wall_clock_seconds
       elapsed > 0 ? count.to_f / elapsed : 0.0
     end
 
-    # Wall clock time from benchmark start to now
+    # Wall clock time from benchmark start to report completion.
     def wall_clock_seconds
       (Time.instant - @benchmark_start).total_seconds
     end
@@ -203,6 +215,24 @@ module Cryload
       @mutex.synchronize { @total_request_count }
     end
 
+    def total_response_bytes
+      @mutex.synchronize { @total_response_bytes }
+    end
+
+    def average_bytes_per_response
+      @mutex.synchronize do
+        return 0.0 if @response_count == 0
+        @total_response_bytes.to_f / @response_count
+      end
+    end
+
+    def bytes_per_second
+      bytes = total_response_bytes
+      return 0.0 if bytes == 0
+      elapsed = wall_clock_seconds
+      elapsed > 0 ? bytes.to_f / elapsed : 0.0
+    end
+
     def p95_request_time
       percentile_request_time(95.0)
     end
@@ -215,12 +245,24 @@ module Cryload
       percentile_request_time(50.0)
     end
 
+    def p25_request_time
+      percentile_request_time(25.0)
+    end
+
     def p90_request_time
       percentile_request_time(90.0)
     end
 
+    def p75_request_time
+      percentile_request_time(75.0)
+    end
+
     def p999_request_time
       percentile_request_time(99.9)
+    end
+
+    def p10_request_time
+      percentile_request_time(10.0)
     end
 
     def response_count
@@ -239,24 +281,84 @@ module Cryload
       @mutex.synchronize { @error_counts.dup }
     end
 
+    def latency_histogram_bins(bin_count : Int32 = 11)
+      @mutex.synchronize do
+        return [] of NamedTuple(start_ms: Float64, end_ms: Float64, count: Int64, percent: Float64) if @total_request_count == 0
+
+        if (@max_request_time_ms - @min_request_time_ms) < HISTOGRAM_BUCKET_SIZE_MS
+          return [{
+            start_ms: @min_request_time_ms.round(2),
+            end_ms:   @max_request_time_ms.round(2),
+            count:    @total_request_count,
+            percent:  100.0,
+          }]
+        end
+
+        effective_bin_count = {1, bin_count}.max
+        span_ms = @max_request_time_ms - @min_request_time_ms
+        counts = Array(Int64).new(effective_bin_count, 0_i64)
+
+        @latency_histogram.each_with_index do |count, index|
+          next if count == 0
+
+          bin_index = (((index.to_f - @min_request_time_ms) / span_ms) * effective_bin_count).floor.to_i
+          bin_index = 0 if bin_index < 0
+          bin_index = effective_bin_count - 1 if bin_index >= effective_bin_count
+          counts[bin_index] += count
+        end
+
+        counts[effective_bin_count - 1] += @histogram_overflow_count
+
+        bins = [] of NamedTuple(start_ms: Float64, end_ms: Float64, count: Int64, percent: Float64)
+        effective_bin_count.times do |index|
+          start_ms = @min_request_time_ms + (span_ms * index / effective_bin_count)
+          end_ms = if index == effective_bin_count - 1
+                     @max_request_time_ms
+                   else
+                     @min_request_time_ms + (span_ms * (index + 1) / effective_bin_count)
+                   end
+          bins << {
+            start_ms: start_ms.round(2),
+            end_ms:   end_ms.round(2),
+            count:    counts[index],
+            percent:  ((counts[index].to_f / @total_request_count) * 100.0).round(2),
+          }
+        end
+
+        bins
+      end
+    end
+
     def final_exit_code
       @mutex.synchronize do
         @transport_error_count > 0 && @response_count == 0 ? 1 : 0
       end
     end
 
-    def <<(request : Request)
-      record_response request.time_taken, request.status_code
+    def json_output
+      @output_format == "json"
     end
 
-    def record_response(time_taken_ms : Float64, status_code : Int32)
-      batch = Batch.new
-      batch.record_response time_taken_ms, status_code
+    def csv_output
+      @output_format == "csv"
+    end
+
+    def quiet_output
+      @output_format == "quiet"
+    end
+
+    def <<(request : Request)
+      record_response request.time_taken, request.status_code, request.response_bytes
+    end
+
+    def record_response(time_taken_ms : Float64, status_code : Int32, response_bytes : Int64 = 0_i64)
+      batch = Batch.new(@success_status_ranges)
+      batch.record_response time_taken_ms, status_code, response_bytes
       merge_batch batch
     end
 
     def record_error(time_taken_ms : Float64, category : String)
-      batch = Batch.new
+      batch = Batch.new(@success_status_ranges)
       batch.record_error time_taken_ms, category
       merge_batch batch
     end
@@ -279,6 +381,7 @@ module Cryload
 
       @total_request_count += batch_count
       @response_count += batch.response_count
+      @total_response_bytes += batch.total_response_bytes
       @ok_requests += batch.ok_requests
       @not_ok_requests += batch.not_ok_requests
       @transport_error_count += batch.transport_error_count
@@ -334,8 +437,8 @@ module Cryload
     end
   end
 
-  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "", json_output : Bool = false)
-    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, json_output
+  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "", output_format : String = "text", success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
+    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, output_format, success_status_ranges
   end
 
   def self.stats

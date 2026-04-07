@@ -3,6 +3,8 @@ require "http/server"
 require "json"
 
 describe "Cryload E2E" do
+  fixture_body_file = File.join(File.dirname(__DIR__), "spec", "support", "request-body.json")
+
   it "completes requests and prints final stats" do
     server = HTTP::Server.new do |context|
       context.response.status_code = 200
@@ -33,11 +35,19 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     output.to_s.should contain("Preparing to make it CRY for 10 requests")
-    output.to_s.should contain("2xx:")
-    output.to_s.should contain("requests in")
+    output.to_s.should contain("Mode: request-count")
+    output.to_s.should contain("Connections: 10")
+    output.to_s.should contain("Total data:")
+    output.to_s.should contain("Successful:")
+    output.to_s.should contain("min:")
+    output.to_s.should contain("Fastest:")
+    output.to_s.should contain("Summary")
+    output.to_s.should contain("Status")
+    output.to_s.should contain("Latency Histogram (ms)")
+    output.to_s.should contain("Latency Distribution (ms)")
   end
 
-  it "reports 2xx as successful requests" do
+  it "reports successful requests" do
     server = HTTP::Server.new do |context|
       context.response.status_code = 200
       context.response.print "OK"
@@ -59,10 +69,10 @@ describe "Cryload E2E" do
 
     server.close
 
-    output.to_s.should contain("2xx: 10")
+    output.to_s.should contain("Successful: 10")
   end
 
-  it "reports non-2xx as failed requests" do
+  it "reports failed requests" do
     server = HTTP::Server.new do |context|
       context.response.status_code = 404
       context.response.print "Not Found"
@@ -84,8 +94,9 @@ describe "Cryload E2E" do
 
     server.close
 
-    output.to_s.should contain("Non-2xx: 5")
-    output.to_s.should contain("Status codes: 404: 5")
+    output.to_s.should contain("Failed: 5")
+    output.to_s.should contain("Status Code Distribution")
+    output.to_s.should contain("[404] 5 responses (100.0%)")
   end
 
   it "accepts -c/--connections for parallel requests" do
@@ -111,7 +122,7 @@ describe "Cryload E2E" do
     server.close
 
     output.to_s.should contain("Running load test @")
-    output.to_s.should contain("20 requests in")
+    output.to_s.should contain("Total requests: 20")
   end
 
   it "prints help when -h is passed" do
@@ -130,9 +141,16 @@ describe "Cryload E2E" do
     output.to_s.should contain("--json")
     output.to_s.should contain("--method")
     output.to_s.should contain("--body")
+    output.to_s.should contain("--body-file")
     output.to_s.should contain("--header")
+    output.to_s.should contain("--user-agent")
+    output.to_s.should contain("--host-header")
+    output.to_s.should contain("--basic-auth")
     output.to_s.should contain("--timeout")
     output.to_s.should contain("--rate")
+    output.to_s.should contain("--follow-redirects")
+    output.to_s.should contain("--output-format")
+    output.to_s.should contain("--success-status")
     output.to_s.should contain("--insecure")
   end
 
@@ -199,8 +217,9 @@ describe "Cryload E2E" do
     combined = output.to_s + error.to_s
     combined.should contain("Connection failed")
     combined.should contain("Continuing and counting transport errors")
-    output.to_s.should contain("Errors: 5")
-    output.to_s.should contain("Transport errors: Socket::ConnectError: 5")
+    output.to_s.should contain("Transport errors: 5 (100.0%)")
+    output.to_s.should contain("Error Distribution")
+    output.to_s.should contain("[Socket::ConnectError] 5 errors (100.0%)")
     process.exit_code.should eq(1)
   end
 
@@ -227,7 +246,8 @@ describe "Cryload E2E" do
     server.close
 
     output.to_s.should contain("Preparing to make it CRY for 1 seconds")
-    output.to_s.should contain("requests in")
+    output.to_s.should contain("Mode: duration (1s)")
+    output.to_s.should contain("Total requests:")
   end
 
   it "supports custom method, header and body" do
@@ -260,7 +280,191 @@ describe "Cryload E2E" do
     server.close
 
     process.exit_code.should eq(0)
-    output.to_s.should contain("2xx: 5")
+    output.to_s.should contain("Successful: 5")
+  end
+
+  it "supports body-file and basic auth" do
+    expected_body = File.read(fixture_body_file)
+
+    server = HTTP::Server.new do |context|
+      auth_header = context.request.headers["Authorization"]?
+      content_type = context.request.headers["Content-Type"]?
+      body = context.request.body.try(&.gets_to_end)
+
+      if context.request.method == "POST" &&
+         auth_header == "Basic dXNlcjpzZWNyZXQ=" &&
+         content_type == "application/json" &&
+         body == expected_body
+        context.response.status_code = 200
+        context.response.print "OK"
+      else
+        context.response.status_code = 400
+        context.response.print "BAD"
+      end
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "3", "-m", "POST", "--body-file", fixture_body_file, "--basic-auth", "user:secret", "-H", "Content-Type: application/json"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("Successful: 3")
+  end
+
+  it "supports user-agent and host-header convenience flags" do
+    server = HTTP::Server.new do |context|
+      if context.request.headers["User-Agent"]? == "cryload-test/1.0" &&
+         context.request.headers["Host"]? == "bench.local"
+        context.response.status_code = 200
+        context.response.print "OK"
+      else
+        context.response.status_code = 400
+        context.response.print "BAD"
+      end
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "3", "--user-agent", "cryload-test/1.0", "--host-header", "bench.local"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("Successful: 3")
+  end
+
+  it "does not follow redirects by default" do
+    server = HTTP::Server.new do |context|
+      if context.request.path == "/redirect"
+        context.response.status_code = 302
+        context.response.headers["Location"] = "/final"
+      else
+        context.response.status_code = 200
+        context.response.print "OK"
+      end
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}/redirect", "-n", "3"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("Successful: 0")
+    output.to_s.should contain("Failed: 3")
+    output.to_s.should contain("Status Code Distribution")
+    output.to_s.should contain("[302] 3 responses (100.0%)")
+  end
+
+  it "follows redirects with --follow-redirects" do
+    server = HTTP::Server.new do |context|
+      if context.request.path == "/redirect"
+        context.response.status_code = 302
+        context.response.headers["Location"] = "/final"
+      else
+        context.response.status_code = 200
+        context.response.print "OK"
+      end
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}/redirect", "-n", "3", "--follow-redirects"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("Successful: 3")
+    output.to_s.should contain("Failed: 0")
+    output.to_s.should contain("Status Code Distribution")
+    output.to_s.should contain("[200] 3 responses (100.0%)")
+  end
+
+  it "supports custom success statuses" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 302
+      context.response.headers["Location"] = "/another"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}/redirect", "-n", "3", "--success-status", "200-299,302"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("Successful: 3")
+    output.to_s.should contain("Failed: 0")
+    output.to_s.should contain("Success statuses: 200-299, 302")
+  end
+
+  it "exits with error on invalid success status format" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--success-status", "abc"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Invalid success status")
+    process.exit_code.should eq(1)
   end
 
   it "exits with error on invalid header format" do
@@ -276,6 +480,86 @@ describe "Cryload E2E" do
 
     combined = output.to_s + error.to_s
     combined.should contain("Invalid header format")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error when body and body-file are both specified" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--body", "inline", "--body-file", fixture_body_file],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Please specify only one body source")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error on invalid basic auth format" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--basic-auth", "invalid"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Invalid basic auth format")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error when basic auth and authorization header are both specified" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--basic-auth", "user:secret", "-H", "Authorization: Bearer token"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Please specify only one authorization source")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error when user-agent flag and User-Agent header are both specified" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--user-agent", "cryload-test/1.0", "-H", "User-Agent: other"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Please specify only one User-Agent source")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error when host-header flag and Host header are both specified" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--host-header", "bench.local", "-H", "Host: other.local"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Please specify only one Host header source")
     process.exit_code.should eq(1)
   end
 
@@ -327,10 +611,43 @@ describe "Cryload E2E" do
     process.exit_code.should eq(1)
   end
 
+  it "exits with error on invalid output format" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--output-format", "xml"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Invalid output format")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error when --json conflicts with another output format" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--json", "--output-format", "csv"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Please specify only one JSON output source")
+    process.exit_code.should eq(1)
+  end
+
   it "outputs json with --json including p95 and p99" do
+    response_body = "OK"
     server = HTTP::Server.new do |context|
       context.response.status_code = 200
-      context.response.print "OK"
+      context.response.print response_body
     end
 
     address = server.bind_unused_port
@@ -354,13 +671,96 @@ describe "Cryload E2E" do
     parsed["requests"].as_i.should eq(20)
     parsed["responses"].as_i.should eq(20)
     parsed["transport_errors"].as_i.should eq(0)
+    parsed["summary"]["request_count"].as_i.should eq(20)
+    parsed["summary"]["response_count"].as_i.should eq(20)
+    parsed["summary"]["transport_error_count"].as_i.should eq(0)
+    parsed["transfer"]["total_bytes"].as_i.should eq(response_body.bytesize * 20)
+    parsed["transfer"]["size_per_request_bytes"].as_f.should eq(response_body.bytesize.to_f)
+    parsed["transfer"]["bytes_per_second"].as_f.should be > 0.0
+    parsed["latency_ms"]["fastest"].as_f.should be >= 0.0
+    parsed["latency_ms"]["min"].as_f.should be >= 0.0
+    parsed["latency_ms"]["p10"].as_f.should be >= 0.0
+    parsed["latency_ms"]["p25"].as_f.should be >= 0.0
     parsed["latency_ms"]["p50"].as_f.should be >= 0.0
+    parsed["latency_ms"]["p75"].as_f.should be >= 0.0
     parsed["latency_ms"]["p90"].as_f.should be >= 0.0
     parsed["latency_ms"]["p95"].as_f.should be >= 0.0
     parsed["latency_ms"]["p99"].as_f.should be >= 0.0
     parsed["latency_ms"]["p999"].as_f.should be >= 0.0
-    parsed["status_counts"]["2xx"].as_i.should eq(20)
+    parsed["latency_ms"]["slowest"].as_f.should be >= 0.0
+    parsed["latency"]["fastest"].as_f.should be >= 0.0
+    parsed["latency_distribution_ms"]["p10"].as_f.should be >= 0.0
+    parsed["latency_distribution"]["p10"].as_f.should be >= 0.0
+    parsed["latency_distribution_ms"]["p999"].as_f.should be >= 0.0
+    parsed["latency_histogram"].as_a.size.should be > 0
+    parsed["latency_histogram"][0]["count"].as_i.should be >= 0
+    parsed["status_counts"]["successful"].as_i.should eq(20)
+    parsed["status_counts"]["successful_percent"].as_f.should eq(100.0)
+    parsed["status_counts"]["failed"].as_i.should eq(0)
+    parsed["status_counts"]["failed_percent"].as_f.should eq(0.0)
+    parsed["status"]["successful_count"].as_i.should eq(20)
+    parsed["status"]["failed_count"].as_i.should eq(0)
+    parsed["success_statuses"][0].as_s.should eq("200-299")
     parsed["response_status_codes"]["200"].as_i.should eq(20)
+    parsed["status_code_distribution"][0]["code"].as_s.should eq("200")
+    parsed["status_code_distribution"][0]["percent"].as_f.should eq(100.0)
+    parsed["transport_error_percent"].as_f.should eq(0.0)
+  end
+
+  it "outputs csv with --output-format csv" do
+    response_body = "hello"
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print response_body
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "5", "--output-format", "csv"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    lines = output.to_s.lines.map(&.strip).reject(&.empty?)
+    lines.size.should eq(2)
+    lines[0].should contain("url,duration_mode,requests,responses,transport_errors,elapsed_seconds,requests_per_second,transfer_total_bytes,transfer_size_per_request_bytes,transfer_bytes_per_second,latency_avg_ms,latency_fastest_ms,latency_min_ms,latency_stdev_ms,latency_slowest_ms,latency_max_ms")
+    lines[1].should contain(",25,5.0,")
+  end
+
+  it "suppresses final output with --output-format quiet" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "5", "--output-format", "quiet"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should eq("")
   end
 
   it "rate limits request mode with --rate" do
@@ -418,9 +818,39 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     parsed = JSON.parse(output.to_s)
-    parsed["elapsed_seconds"].as_f.should be < 2.3
-    parsed["requests"].as_i.should be >= 38
-    parsed["requests_per_second"].as_f.should be >= 18.0
+    parsed["elapsed_seconds"].as_f.should be < 2.2
+    parsed["requests"].as_i.should be >= 35
+    parsed["requests_per_second"].as_f.should be >= 17.0
+  end
+
+  it "stops duration mode at the configured deadline without waiting for late responses" do
+    server = HTTP::Server.new do |context|
+      sleep 1500.milliseconds
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-d", "1", "-c", "5", "--json"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    parsed = JSON.parse(output.to_s)
+    parsed["elapsed_seconds"].as_f.should be < 1.2
+    parsed["requests"].as_i.should eq(0)
+    parsed["responses"].as_i.should eq(0)
   end
 
   it "outputs transport errors in json when target is unreachable" do
@@ -439,6 +869,9 @@ describe "Cryload E2E" do
     parsed["requests"].as_i.should eq(3)
     parsed["responses"].as_i.should eq(0)
     parsed["transport_errors"].as_i.should eq(3)
+    parsed["transport_error_percent"].as_f.should eq(100.0)
     parsed["error_counts"]["Socket::ConnectError"].as_i.should eq(3)
+    parsed["transport_error_distribution"][0]["category"].as_s.should eq("Socket::ConnectError")
+    parsed["transport_error_distribution"][0]["percent"].as_f.should eq(100.0)
   end
 end
