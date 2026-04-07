@@ -15,7 +15,7 @@ Built with [Crystal](https://crystal-lang.org/) for high performance and low ove
 - High-throughput HTTP load testing with a lightweight CLI experience
 - Concurrent benchmarking with configurable connection count
 - Request count mode (`-n`) and duration mode (`-d`) support
-- Flexible request customization (method, headers, body, timeout, TLS)
+- Flexible request customization (method, headers, body, body-file, auth, timeout, TLS)
 - JSON output mode for CI/CD and automation workflows
 - Richer latency percentiles plus response/error breakdowns
 - Optional global request rate limiting with `--rate`
@@ -65,7 +65,9 @@ cryload <url> [options]
 | `-c`, `--connections` | Concurrent connections (default: 10) |
 | `-m`, `--method` | HTTP method (default: GET) |
 | `-b`, `--body` | HTTP request body |
+| `--body-file` | Read HTTP request body from file |
 | `-H`, `--header` | HTTP header, repeatable (`-H "Key: Value"`) |
+| `-a`, `--basic-auth` | HTTP Basic auth in the form `user:password` |
 | `--timeout` | Client connect/read timeout in seconds |
 | `-q`, `--rate` | Total request rate limit in requests/sec |
 | `--insecure` | Accept invalid TLS certificates for HTTPS |
@@ -99,9 +101,19 @@ POST with JSON body
 cryload http://localhost:3000/api -n 500 -m POST -H "Content-Type: application/json" -b '{"name":"cry"}' --timeout 5
 ```
 
+POST JSON body from file
+```bash
+cryload http://localhost:3000/api -n 500 -m POST -H "Content-Type: application/json" --body-file payload.json
+```
+
 POST with multiple headers
 ```bash
 cryload http://localhost:3000/api -n 300 -m POST -H "Authorization: Bearer token123" -H "X-Request-ID: benchmark-1" -b '{"ok":true}'
+```
+
+Basic auth request
+```bash
+cryload http://localhost:3000/private -n 300 --basic-auth username:password
 ```
 
 Duration mode + timeout
