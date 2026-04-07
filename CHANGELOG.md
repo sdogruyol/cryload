@@ -49,6 +49,7 @@ cryload http://localhost:3000/redirect -n 100 --success-status 200-299,302
 - **Transfer Metrics** — Added total response data, size per request, and transfer per second reporting in text/JSON/CSV output
 - **Status Breakdown** — Added richer status/error distribution reporting with counts and percentages in text/JSON/CSV output
 - **Latency Naming** — Added `fastest` / `slowest` latency labels alongside `min` / `max` for easier comparison with `hey` / `oha`
+- **Output Consistency** — Standardized section names and added normalized `summary`, `latency`, and `status` objects/headers across text/JSON/CSV output
 
 
 # 2.3.0 (06-04-2026)
