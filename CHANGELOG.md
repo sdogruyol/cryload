@@ -30,11 +30,19 @@ cryload http://127.0.0.1:3000 -n 300 --host-header api.internal
 cryload http://localhost:3000/redirect -n 100 -L
 ```
 
-- **Success Criteria** — Added `--success-status` for custom successful response code/range matching
+- **Output Modes** — Added `--output-format` with `text`, `json`, `csv`, and `quiet` modes while keeping `--json` as a compatibility shortcut
 
 ```bash
-cryload http://localhost:3000/redirect -n 100 --success-status 200-299,301,302,307,308
+cryload http://localhost:3000/api -n 1000 --output-format csv
+cryload http://localhost:3000/health -n 10 --output-format quiet
 ```
+
+- **Success Criteria** — Added `--success-status` so custom HTTP codes/ranges can count as successful responses
+
+```bash
+cryload http://localhost:3000/redirect -n 100 --success-status 200-299,302
+```
+
 
 # 2.3.0 (06-04-2026)
 
