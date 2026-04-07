@@ -1,3 +1,20 @@
+# 3.1.0 (07-04-2026)
+
+- **Distribution** — Added `scripts/install.sh` for Linux, macOS, and Git Bash on Windows: downloads the release binary, verifies SHA256, and installs to `~/.local/bin` (configurable via `INSTALL_DIR`, `VERSION`, `REPO`)
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh -s
+```
+
+- **Distribution** — Added `scripts/install.ps1` for Windows PowerShell with the same checksum-verified install flow to `%USERPROFILE%\.local\bin`
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.ps1 | iex
+```
+
+- **Releases** — GitHub Release assets now include `.sha256` checksum files alongside each prebuilt binary (Linux, macOS, Windows)
+- **Documentation** — README installation section documents the install scripts and ordering (script → manual binary → build from source)
+
 # 3.0.0 (07-04-2026)
 
 - **Request Ergonomics** — Added `--body-file` for reading request payloads from disk
