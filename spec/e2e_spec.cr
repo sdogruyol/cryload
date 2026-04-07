@@ -134,6 +134,8 @@ describe "Cryload E2E" do
     output.to_s.should contain("--body")
     output.to_s.should contain("--body-file")
     output.to_s.should contain("--header")
+    output.to_s.should contain("--user-agent")
+    output.to_s.should contain("--host-header")
     output.to_s.should contain("--basic-auth")
     output.to_s.should contain("--timeout")
     output.to_s.should contain("--rate")
@@ -305,6 +307,38 @@ describe "Cryload E2E" do
     output.to_s.should contain("2xx: 3")
   end
 
+  it "supports user-agent and host-header convenience flags" do
+    server = HTTP::Server.new do |context|
+      if context.request.headers["User-Agent"]? == "cryload-test/1.0" &&
+         context.request.headers["Host"]? == "bench.local"
+        context.response.status_code = 200
+        context.response.print "OK"
+      else
+        context.response.status_code = 400
+        context.response.print "BAD"
+      end
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "3", "--user-agent", "cryload-test/1.0", "--host-header", "bench.local"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("2xx: 3")
+  end
+
   it "exits with error on invalid header format" do
     output = IO::Memory.new
     error = IO::Memory.new
@@ -366,6 +400,38 @@ describe "Cryload E2E" do
 
     combined = output.to_s + error.to_s
     combined.should contain("Please specify only one authorization source")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error when user-agent flag and User-Agent header are both specified" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--user-agent", "cryload-test/1.0", "-H", "User-Agent: other"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Please specify only one User-Agent source")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error when host-header flag and Host header are both specified" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--host-header", "bench.local", "-H", "Host: other.local"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Please specify only one Host header source")
     process.exit_code.should eq(1)
   end
 

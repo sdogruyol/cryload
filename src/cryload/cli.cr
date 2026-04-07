@@ -71,6 +71,14 @@ module Cryload
             headers << v
           end
 
+          opts.on("--user-agent VALUE", "Set the User-Agent header") do |v|
+            @options[:user_agent] = v
+          end
+
+          opts.on("--host-header VALUE", "Override the Host header") do |v|
+            @options[:host_header] = v
+          end
+
           opts.on("-a USERPASS", "--basic-auth USERPASS", "HTTP Basic auth in the form 'user:password'") do |v|
             @options[:basic_auth] = v
           end
@@ -145,6 +153,32 @@ module Cryload
       if headers.any? { |header| !valid_header?(header) }
         STDERR.puts "Invalid header format. Use 'Key: Value' (e.g. -H 'Authorization: Bearer token').".colorize(:red)
         return false
+      end
+
+      if @options.has_key?(:user_agent)
+        user_agent = @options[:user_agent].as(String)
+        if user_agent.strip.empty?
+          STDERR.puts "User-Agent must not be empty.".colorize(:red)
+          return false
+        end
+
+        if header_name_present?(headers, "User-Agent")
+          STDERR.puts "Please specify only one User-Agent source: either '--user-agent' or '-H User-Agent: ...'.".colorize(:red)
+          return false
+        end
+      end
+
+      if @options.has_key?(:host_header)
+        host_header = @options[:host_header].as(String)
+        if host_header.strip.empty?
+          STDERR.puts "Host header must not be empty.".colorize(:red)
+          return false
+        end
+
+        if header_name_present?(headers, "Host")
+          STDERR.puts "Please specify only one Host header source: either '--host-header' or '-H Host: ...'.".colorize(:red)
+          return false
+        end
       end
 
       if @options.has_key?(:body) && @options.has_key?(:body_file)
@@ -237,6 +271,12 @@ module Cryload
 
     private def build_headers(raw_headers : Array(String))
       headers = parse_headers(raw_headers)
+      if host_header = @options[:host_header]?.try(&.as(String))
+        headers["Host"] = host_header
+      end
+      if user_agent = @options[:user_agent]?.try(&.as(String))
+        headers["User-Agent"] = user_agent
+      end
       if auth = @options[:basic_auth]?.try(&.as(String))
         headers["Authorization"] = "Basic #{Base64.strict_encode(auth)}"
       end
@@ -267,6 +307,13 @@ module Cryload
       parts = auth.split(":", 2)
       return false if parts.size != 2
       !parts[0].empty?
+    end
+
+    private def header_name_present?(headers : Array(String), expected_name : String)
+      expected_name_downcase = expected_name.downcase
+      headers.any? do |header|
+        header.split(":", 2)[0]?.try(&.strip.downcase) == expected_name_downcase
+      end
     end
 
     private def valid_url?(url : String)
