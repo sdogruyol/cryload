@@ -182,6 +182,8 @@ Summary
   Requests/sec: 167803.62
   Responses: 1696170
   Transport errors: 0 (0.0%)
+  Fastest: 0.19 ms
+  Slowest: 35.39 ms
 
 Transfer
   Total data: 374.14 MiB
