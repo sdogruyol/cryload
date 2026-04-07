@@ -42,8 +42,9 @@ describe "Cryload E2E" do
     output.to_s.should contain("min:")
     output.to_s.should contain("Fastest:")
     output.to_s.should contain("Summary")
-    output.to_s.should contain("Response Time Histogram (ms)")
-    output.to_s.should contain("Response Time Distribution (ms)")
+    output.to_s.should contain("Status")
+    output.to_s.should contain("Latency Histogram (ms)")
+    output.to_s.should contain("Latency Distribution (ms)")
   end
 
   it "reports successful requests" do
@@ -670,6 +671,9 @@ describe "Cryload E2E" do
     parsed["requests"].as_i.should eq(20)
     parsed["responses"].as_i.should eq(20)
     parsed["transport_errors"].as_i.should eq(0)
+    parsed["summary"]["request_count"].as_i.should eq(20)
+    parsed["summary"]["response_count"].as_i.should eq(20)
+    parsed["summary"]["transport_error_count"].as_i.should eq(0)
     parsed["transfer"]["total_bytes"].as_i.should eq(response_body.bytesize * 20)
     parsed["transfer"]["size_per_request_bytes"].as_f.should eq(response_body.bytesize.to_f)
     parsed["transfer"]["bytes_per_second"].as_f.should be > 0.0
@@ -684,7 +688,9 @@ describe "Cryload E2E" do
     parsed["latency_ms"]["p99"].as_f.should be >= 0.0
     parsed["latency_ms"]["p999"].as_f.should be >= 0.0
     parsed["latency_ms"]["slowest"].as_f.should be >= 0.0
+    parsed["latency"]["fastest"].as_f.should be >= 0.0
     parsed["latency_distribution_ms"]["p10"].as_f.should be >= 0.0
+    parsed["latency_distribution"]["p10"].as_f.should be >= 0.0
     parsed["latency_distribution_ms"]["p999"].as_f.should be >= 0.0
     parsed["latency_histogram"].as_a.size.should be > 0
     parsed["latency_histogram"][0]["count"].as_i.should be >= 0
@@ -692,6 +698,8 @@ describe "Cryload E2E" do
     parsed["status_counts"]["successful_percent"].as_f.should eq(100.0)
     parsed["status_counts"]["failed"].as_i.should eq(0)
     parsed["status_counts"]["failed_percent"].as_f.should eq(0.0)
+    parsed["status"]["successful_count"].as_i.should eq(20)
+    parsed["status"]["failed_count"].as_i.should eq(0)
     parsed["success_statuses"][0].as_s.should eq("200-299")
     parsed["response_status_codes"]["200"].as_i.should eq(20)
     parsed["status_code_distribution"][0]["code"].as_s.should eq("200")
@@ -725,7 +733,7 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
     lines = output.to_s.lines.map(&.strip).reject(&.empty?)
     lines.size.should eq(2)
-    lines[0].should contain("url,duration_mode,requests,responses,transport_errors,elapsed_seconds,requests_per_second,total_response_bytes,size_per_request_bytes,bytes_per_second,latency_avg_ms,latency_fastest_ms,latency_min_ms,latency_stdev_ms,latency_slowest_ms,latency_max_ms")
+    lines[0].should contain("url,duration_mode,requests,responses,transport_errors,elapsed_seconds,requests_per_second,transfer_total_bytes,transfer_size_per_request_bytes,transfer_bytes_per_second,latency_avg_ms,latency_fastest_ms,latency_min_ms,latency_stdev_ms,latency_slowest_ms,latency_max_ms")
     lines[1].should contain(",25,5.0,")
   end
 

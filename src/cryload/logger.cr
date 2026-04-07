@@ -58,6 +58,46 @@ module Cryload
       end
 
       if s.json_output
+        latency_payload = {
+          "avg"     => avg_ms,
+          "fastest" => min_ms,
+          "min"     => min_ms,
+          "stdev"   => stdev_ms,
+          "slowest" => max_ms,
+          "max"     => max_ms,
+          "p10"     => p10_ms,
+          "p25"     => p25_ms,
+          "p50"     => p50_ms,
+          "p75"     => p75_ms,
+          "p90"     => p90_ms,
+          "p95"     => p95_ms,
+          "p99"     => p99_ms,
+          "p999"    => p999_ms,
+        }
+        latency_distribution_payload = {
+          "p10"  => p10_ms,
+          "p25"  => p25_ms,
+          "p50"  => p50_ms,
+          "p75"  => p75_ms,
+          "p90"  => p90_ms,
+          "p95"  => p95_ms,
+          "p99"  => p99_ms,
+          "p999" => p999_ms,
+        }
+        status_distribution_payload = status_distribution.map do |entry|
+          {
+            "code"    => entry[:label],
+            "count"   => entry[:count],
+            "percent" => entry[:percent],
+          }
+        end
+        transport_error_distribution_payload = transport_error_distribution.map do |entry|
+          {
+            "category" => entry[:label],
+            "count"    => entry[:count],
+            "percent"  => entry[:percent],
+          }
+        end
         payload = {
           "url"                 => s.url,
           "duration_mode"       => s.duration_mode,
@@ -66,38 +106,23 @@ module Cryload
           "transport_errors"    => error_count,
           "elapsed_seconds"     => elapsed,
           "requests_per_second" => rps,
-          "transfer"            => {
+          "summary"             => {
+            "request_count"         => total,
+            "response_count"        => response_count,
+            "transport_error_count" => error_count,
+            "total_time_seconds"    => elapsed,
+            "requests_per_second"   => rps,
+          },
+          "transfer" => {
             "total_bytes"            => total_response_bytes,
             "size_per_request_bytes" => average_bytes_per_response.round(2),
             "bytes_per_second"       => bytes_per_second.round(2),
           },
-          "latency_ms" => {
-            "avg"     => avg_ms,
-            "fastest" => min_ms,
-            "min"     => min_ms,
-            "stdev"   => stdev_ms,
-            "slowest" => max_ms,
-            "max"     => max_ms,
-            "p10"     => p10_ms,
-            "p25"     => p25_ms,
-            "p50"     => p50_ms,
-            "p75"     => p75_ms,
-            "p90"     => p90_ms,
-            "p95"     => p95_ms,
-            "p99"     => p99_ms,
-            "p999"    => p999_ms,
-          },
-          "latency_distribution_ms" => {
-            "p10"  => p10_ms,
-            "p25"  => p25_ms,
-            "p50"  => p50_ms,
-            "p75"  => p75_ms,
-            "p90"  => p90_ms,
-            "p95"  => p95_ms,
-            "p99"  => p99_ms,
-            "p999" => p999_ms,
-          },
-          "latency_histogram" => histogram_bins.map do |bin|
+          "latency"                 => latency_payload,
+          "latency_ms"              => latency_payload,
+          "latency_distribution"    => latency_distribution_payload,
+          "latency_distribution_ms" => latency_distribution_payload,
+          "latency_histogram"       => histogram_bins.map do |bin|
             {
               "start_ms" => bin[:start_ms],
               "end_ms"   => bin[:end_ms],
@@ -105,30 +130,27 @@ module Cryload
               "percent"  => bin[:percent],
             }
           end,
+          "status" => {
+            "successful_count"             => s.ok_requests,
+            "successful_percent"           => success_percent,
+            "failed_count"                 => s.not_ok_requests,
+            "failed_percent"               => failure_percent,
+            "success_statuses"             => success_status_ranges,
+            "code_distribution"            => status_distribution_payload,
+            "transport_error_distribution" => transport_error_distribution_payload,
+          },
           "status_counts" => {
             "successful"         => s.ok_requests,
             "successful_percent" => success_percent,
             "failed"             => s.not_ok_requests,
             "failed_percent"     => failure_percent,
           },
-          "success_statuses"         => success_status_ranges,
-          "response_status_codes"    => exact_status_counts.transform_keys(&.to_s),
-          "status_code_distribution" => status_distribution.map do |entry|
-            {
-              "code"    => entry[:label],
-              "count"   => entry[:count],
-              "percent" => entry[:percent],
-            }
-          end,
+          "success_statuses"             => success_status_ranges,
+          "response_status_codes"        => exact_status_counts.transform_keys(&.to_s),
+          "status_code_distribution"     => status_distribution_payload,
           "error_counts"                 => error_counts,
-          "transport_error_distribution" => transport_error_distribution.map do |entry|
-            {
-              "category" => entry[:label],
-              "count"    => entry[:count],
-              "percent"  => entry[:percent],
-            }
-          end,
-          "transport_error_percent" => transport_error_percent,
+          "transport_error_distribution" => transport_error_distribution_payload,
+          "transport_error_percent"      => transport_error_percent,
         }
         puts payload.to_json
         return
@@ -150,6 +172,11 @@ module Cryload
       puts "  Fastest: #{min_ms} ms"
       puts "  Slowest: #{max_ms} ms"
       puts
+      puts "Status"
+      puts "  Successful: #{s.ok_requests} (#{success_percent}%)"
+      puts "  Failed: #{s.not_ok_requests} (#{failure_percent}%)"
+      puts "  Success statuses: #{success_status_ranges.join(", ")}"
+      puts
       puts "Transfer"
       puts "  Total data: #{format_bytes(total_response_bytes)}"
       puts "  Size/request: #{format_bytes(average_bytes_per_response)}"
@@ -158,14 +185,14 @@ module Cryload
       puts "Latency (ms)"
       puts "  avg: #{format_latency_value(avg_ms)}   min: #{format_latency_value(min_ms)}   stdev: #{format_latency_value(stdev_ms)}   max: #{format_latency_value(max_ms)}"
       puts
-      puts "Percentiles (ms)"
+      puts "Latency Percentiles (ms)"
       puts "  p50: #{format_latency_value(p50_ms)}   p90: #{format_latency_value(p90_ms)}   p95: #{format_latency_value(p95_ms)}"
       puts "  p99: #{format_latency_value(p99_ms)}   p999: #{format_latency_value(p999_ms)}"
       puts
-      puts "Response Time Histogram (ms)"
+      puts "Latency Histogram (ms)"
       print_histogram histogram_bins
       puts
-      puts "Response Time Distribution (ms)"
+      puts "Latency Distribution (ms)"
       puts "  10.0% in #{format_latency_value(p10_ms)}"
       puts "  25.0% in #{format_latency_value(p25_ms)}"
       puts "  50.0% in #{format_latency_value(p50_ms)}"
@@ -175,10 +202,6 @@ module Cryload
       puts "  99.0% in #{format_latency_value(p99_ms)}"
       puts "  99.9% in #{format_latency_value(p999_ms)}"
       puts
-      puts "Status Summary"
-      puts "  Successful: #{s.ok_requests} (#{success_percent}%)"
-      puts "  Failed: #{s.not_ok_requests} (#{failure_percent}%)"
-      puts "  Success statuses: #{success_status_ranges.join(", ")}"
       unless status_distribution.empty?
         puts
         puts "Status Code Distribution"
@@ -204,9 +227,9 @@ module Cryload
         "transport_errors",
         "elapsed_seconds",
         "requests_per_second",
-        "total_response_bytes",
-        "size_per_request_bytes",
-        "bytes_per_second",
+        "transfer_total_bytes",
+        "transfer_size_per_request_bytes",
+        "transfer_bytes_per_second",
         "latency_avg_ms",
         "latency_fastest_ms",
         "latency_min_ms",
@@ -218,12 +241,12 @@ module Cryload
         "latency_p95_ms",
         "latency_p99_ms",
         "latency_p999_ms",
-        "successful",
-        "successful_percent",
-        "failed",
-        "failed_percent",
+        "status_successful_count",
+        "status_successful_percent",
+        "status_failed_count",
+        "status_failed_percent",
         "transport_error_percent",
-        "success_statuses",
+        "status_successes",
         "status_code_distribution",
         "transport_error_distribution",
       ]
