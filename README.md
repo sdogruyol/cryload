@@ -172,15 +172,15 @@ cryload http://localhost:3000/health -n 10 --output-format quiet
 Preparing to make it CRY for 10 seconds with 100 connections!
 Running load test @ http://localhost:3000/
 
-  Latency (ms)      avg: 0.53   stdev: 0.76   max: 35.39
+  Latency (ms)      avg: 0.53   min: 0.19   stdev: 0.76   max: 35.39
 
   Percentiles (ms)  p50: 0.41   p90: 0.81   p95: 0.96
                     p99: 1.34   p999: 3.72
 
 1696170 requests in 10.11s
 Requests/sec:  167803.62
-Responses: 1696170    Errors: 0
-Successful: 1696170    Failed: 0
+Responses: 1696170    Errors: 0 (0.0%)
+Successful: 1696170 (100.0%)    Failed: 0 (0.0%)
 Success statuses: 200-299
 Status codes: 200: 1696170
 ```
