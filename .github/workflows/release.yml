@@ -59,11 +59,17 @@ jobs:
           cp dist/cryload-linux/cryload dist/cryload-linux/cryload-linux
           cp dist/cryload-macos/cryload dist/cryload-macos/cryload-macos
           cp dist/cryload-windows/cryload.exe dist/cryload-windows/cryload-windows.exe
+          (cd dist/cryload-linux && sha256sum cryload-linux > cryload-linux.sha256)
+          (cd dist/cryload-macos && sha256sum cryload-macos > cryload-macos.sha256)
+          (cd dist/cryload-windows && sha256sum cryload-windows.exe > cryload-windows.exe.sha256)
 
       - name: Publish release with binaries
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/cryload-linux/cryload-linux
+            dist/cryload-linux/cryload-linux.sha256
             dist/cryload-macos/cryload-macos
+            dist/cryload-macos/cryload-macos.sha256
             dist/cryload-windows/cryload-windows.exe
+            dist/cryload-windows/cryload-windows.exe.sha256
