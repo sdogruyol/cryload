@@ -156,24 +156,24 @@ module Cryload
       puts "  Transfer/sec: #{format_bytes(bytes_per_second)}/s"
       puts
       puts "Latency (ms)"
-      puts "  avg: #{avg_ms}   min: #{min_ms}   stdev: #{stdev_ms}   max: #{max_ms}"
+      puts "  avg: #{format_latency_value(avg_ms)}   min: #{format_latency_value(min_ms)}   stdev: #{format_latency_value(stdev_ms)}   max: #{format_latency_value(max_ms)}"
       puts
       puts "Percentiles (ms)"
-      puts "  p50: #{p50_ms}   p90: #{p90_ms}   p95: #{p95_ms}"
-      puts "  p99: #{p99_ms}   p999: #{p999_ms}"
+      puts "  p50: #{format_latency_value(p50_ms)}   p90: #{format_latency_value(p90_ms)}   p95: #{format_latency_value(p95_ms)}"
+      puts "  p99: #{format_latency_value(p99_ms)}   p999: #{format_latency_value(p999_ms)}"
       puts
       puts "Response Time Histogram (ms)"
       print_histogram histogram_bins
       puts
       puts "Response Time Distribution (ms)"
-      puts "  10.0% in #{p10_ms}"
-      puts "  25.0% in #{p25_ms}"
-      puts "  50.0% in #{p50_ms}"
-      puts "  75.0% in #{p75_ms}"
-      puts "  90.0% in #{p90_ms}"
-      puts "  95.0% in #{p95_ms}"
-      puts "  99.0% in #{p99_ms}"
-      puts "  99.9% in #{p999_ms}"
+      puts "  10.0% in #{format_latency_value(p10_ms)}"
+      puts "  25.0% in #{format_latency_value(p25_ms)}"
+      puts "  50.0% in #{format_latency_value(p50_ms)}"
+      puts "  75.0% in #{format_latency_value(p75_ms)}"
+      puts "  90.0% in #{format_latency_value(p90_ms)}"
+      puts "  95.0% in #{format_latency_value(p95_ms)}"
+      puts "  99.0% in #{format_latency_value(p99_ms)}"
+      puts "  99.9% in #{format_latency_value(p999_ms)}"
       puts
       puts "Status Summary"
       puts "  Successful: #{s.ok_requests} (#{success_percent}%)"
@@ -289,12 +289,13 @@ module Cryload
 
     private def self.print_histogram(histogram_bins)
       max_count = histogram_bins.max_of? { |bin| bin[:count] } || 0_i64
+      max_label_width = histogram_bins.max_of? { |bin| histogram_label(bin).size } || 0
 
       histogram_bins.each do |bin|
         width = max_count > 0 ? ((bin[:count].to_f / max_count) * 32).round.to_i : 0
         width = 1 if bin[:count] > 0 && width == 0
         bar = "■" * width
-        label = bin[:end_ms].round(2)
+        label = histogram_label(bin).rjust(max_label_width)
         puts "  #{label} [#{bin[:count]}] |#{bar}"
       end
     end
@@ -303,6 +304,20 @@ module Cryload
       status_ranges.map do |status_range|
         status_range.begin == status_range.end ? status_range.begin.to_s : "#{status_range.begin}-#{status_range.end}"
       end.join(", ")
+    end
+
+    private def self.histogram_label(bin)
+      "#{format_latency_value(bin[:end_ms])} ms"
+    end
+
+    private def self.format_latency_value(value : Float64)
+      if value < 10.0
+        value.round(3).to_s
+      elsif value < 100.0
+        value.round(2).to_s
+      else
+        value.round(1).to_s
+      end
     end
 
     private def self.build_status_distribution(status_counts : Hash(Int32, Int64), total_responses : Int64)

@@ -1,9 +1,9 @@
 module Cryload
   # Stats holder for the benchmark
   class Stats
-    HISTOGRAM_BUCKET_SIZE_MS =    1.0
+    HISTOGRAM_BUCKET_SIZE_MS =    0.1
     HISTOGRAM_MAX_MS         = 60_000
-    HISTOGRAM_BUCKET_COUNT   = HISTOGRAM_MAX_MS + 1
+    HISTOGRAM_BUCKET_COUNT   = (HISTOGRAM_MAX_MS / HISTOGRAM_BUCKET_SIZE_MS).to_i + 1
 
     # Worker-local stats batch flushed periodically to the global collector.
     class Batch

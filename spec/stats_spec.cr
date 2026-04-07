@@ -60,6 +60,17 @@ describe Cryload::Stats do
     stats.p999_request_time.should eq(100.0)
   end
 
+  it "keeps sub-millisecond percentiles above zero" do
+    stats = Cryload::Stats.new(10)
+
+    [0.12, 0.24, 0.36, 0.48].each do |latency_ms|
+      stats.record_response(latency_ms, 200)
+    end
+
+    stats.p50_request_time.should be_close(0.3, 0.1)
+    stats.p99_request_time.should be >= 0.4
+  end
+
   it "builds rolled-up histogram bins for reporting" do
     stats = Cryload::Stats.new(100)
 
