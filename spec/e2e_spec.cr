@@ -800,6 +800,35 @@ describe "Cryload E2E" do
     parsed["requests_per_second"].as_f.should be >= 18.0
   end
 
+  it "caps reported elapsed time to configured duration even when responses finish later" do
+    server = HTTP::Server.new do |context|
+      sleep 1500.milliseconds
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-d", "1", "-c", "5", "--json"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    parsed = JSON.parse(output.to_s)
+    parsed["elapsed_seconds"].as_f.should eq(1.0)
+    parsed["requests_per_second"].as_f.should be >= 5.0
+  end
+
   it "outputs transport errors in json when target is unreachable" do
     output = IO::Memory.new
     error = IO::Memory.new

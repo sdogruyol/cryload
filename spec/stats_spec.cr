@@ -115,4 +115,13 @@ describe Cryload::Stats do
 
     stats.final_exit_code.should eq(1)
   end
+
+  it "caps reported elapsed time to configured duration window" do
+    stats = Cryload::Stats.new(10, duration_mode: true, benchmark_start: Time.instant - 2.seconds, planned_duration_seconds: 1.0)
+
+    stats.record_response(100.0, 200)
+
+    stats.wall_clock_seconds.should be_close(1.0, 0.001)
+    stats.request_per_second.should be_close(1.0, 0.001)
+  end
 end

@@ -125,10 +125,11 @@ module Cryload
     getter :url
     getter :output_format
     getter :success_status_ranges
+    getter :planned_duration_seconds
 
     TIME_IN_MILISECONDS = 1000
 
-    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @output_format : String = "text", @success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
+    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @output_format : String = "text", @success_status_ranges : Array(Range(Int32, Int32)) = [200..299], @planned_duration_seconds : Float64? = nil)
       @total_request_count = 0_i64
       @response_count = 0_i64
       @ok_requests = 0_i64
@@ -180,13 +181,13 @@ module Cryload
     def request_per_second
       count = total_request_count
       return 0.0 if count == 0
-      elapsed = (Time.instant - @benchmark_start).total_seconds
+      elapsed = effective_elapsed_seconds
       elapsed > 0 ? count.to_f / elapsed : 0.0
     end
 
-    # Wall clock time from benchmark start to now
+    # Reported elapsed time for the benchmark window.
     def wall_clock_seconds
-      (Time.instant - @benchmark_start).total_seconds
+      effective_elapsed_seconds
     end
 
     def total_request_time_in_seconds
@@ -351,6 +352,14 @@ module Cryload
       @mutex.synchronize { @total_request_time_ms }
     end
 
+    private def effective_elapsed_seconds
+      elapsed = (Time.instant - @benchmark_start).total_seconds
+      planned_duration_seconds = @planned_duration_seconds
+      return elapsed unless @duration_mode && planned_duration_seconds
+
+      {elapsed, planned_duration_seconds}.min
+    end
+
     private def merge_batch_without_lock(batch : Batch)
       previous_count = @total_request_count
       batch_count = batch.total_request_count
@@ -412,8 +421,8 @@ module Cryload
     end
   end
 
-  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "", output_format : String = "text", success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
-    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, output_format, success_status_ranges
+  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "", output_format : String = "text", success_status_ranges : Array(Range(Int32, Int32)) = [200..299], planned_duration_seconds : Float64? = nil)
+    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, output_format, success_status_ranges, planned_duration_seconds
   end
 
   def self.stats
