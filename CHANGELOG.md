@@ -1,3 +1,7 @@
+# Unreleased
+
+- **Request Ergonomics** — Added `--body-file` for reading request payloads from disk and `--basic-auth` / `-a` for Basic authentication
+
 # 2.3.0 (06-04-2026)
 
 - **Resilience** — Transport errors are now counted and reported instead of aborting the run on the first failed request
