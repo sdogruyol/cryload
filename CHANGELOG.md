@@ -1,4 +1,4 @@
-# Unreleased
+# 3.0.0 (07-04-2026)
 
 - **Request Ergonomics** — Added `--body-file` for reading request payloads from disk
 
