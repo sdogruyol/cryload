@@ -1,6 +1,34 @@
 # Unreleased
 
-- **Request Ergonomics** — Added `--body-file` for reading request payloads from disk, `--basic-auth` / `-a` for Basic authentication, `--user-agent` for User-Agent overrides, and `--host-header` for explicit Host header control
+- **Request Ergonomics** — Added `--body-file` for reading request payloads from disk
+
+```bash
+cryload http://localhost:3000/api -n 500 -m POST -H "Content-Type: application/json" --body-file payload.json
+```
+
+- **Request Ergonomics** — Added `--basic-auth` / `-a` for Basic authentication
+
+```bash
+cryload http://localhost:3000/private -n 300 --basic-auth username:password
+```
+
+- **Request Ergonomics** — Added `--user-agent` for User-Agent overrides
+
+```bash
+cryload http://localhost:3000 -n 300 --user-agent cryload-test/1.0
+```
+
+- **Request Ergonomics** — Added `--host-header` for explicit Host header control
+
+```bash
+cryload http://127.0.0.1:3000 -n 300 --host-header api.internal
+```
+
+- **Request Ergonomics** — Added `-L` / `--follow-redirects` for redirect-aware benchmarking
+
+```bash
+cryload http://localhost:3000/redirect -n 100 -L
+```
 
 # 2.3.0 (06-04-2026)
 
