@@ -34,6 +34,16 @@ describe Cryload::Stats do
     stats.status_code_counts.should eq({200 => 1_i64, 201 => 1_i64, 404 => 1_i64})
   end
 
+  it "supports custom success status ranges" do
+    stats = Cryload::Stats.new(10, success_status_ranges: [200..204, 301..304])
+
+    stats.record_response(10.0, 302)
+    stats.record_response(20.0, 404)
+
+    stats.ok_requests.should eq(1)
+    stats.not_ok_requests.should eq(1)
+  end
+
   it "calculates p95 and p99 from histogram" do
     stats = Cryload::Stats.new(100)
 

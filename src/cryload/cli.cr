@@ -24,13 +24,14 @@ module Cryload
       rate_limit = @options[:rate]?.try(&.as(Int32))
       insecure = @options[:insecure]?.try(&.as(Bool)) || false
       follow_redirects = @options[:follow_redirects]?.try(&.as(Bool)) || false
+      success_status_ranges = parse_success_status_ranges(@options[:success_status]?.try(&.as(String)))
       headers = build_headers(@options[:headers].as(Array(String)))
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
-        Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects
+        Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges
       else
         numbers = @options[:numbers].as(Int32)
-        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects
+        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges
       end
     end
 
@@ -94,6 +95,10 @@ module Cryload
 
           opts.on("-L", "--follow-redirects", "Follow HTTP redirects (up to 5 hops)") do
             @options[:follow_redirects] = true
+          end
+
+          opts.on("--success-status CODES", "Successful status codes/ranges (e.g. 200-299,301,304)") do |v|
+            @options[:success_status] = v
           end
 
           opts.on("--insecure", "Accept invalid TLS certificates (HTTPS only)") do
@@ -220,6 +225,15 @@ module Cryload
         end
       end
 
+      if @options.has_key?(:success_status)
+        begin
+          parse_success_status_ranges(@options[:success_status].as(String))
+        rescue ex : ArgumentError
+          STDERR.puts ex.message.to_s.colorize(:red)
+          return false
+        end
+      end
+
       if @options.has_key?(:rate)
         rate = @options[:rate].as(Int32)
         if rate <= 0
@@ -319,6 +333,36 @@ module Cryload
       headers.any? do |header|
         header.split(":", 2)[0]?.try(&.strip.downcase) == expected_name_downcase
       end
+    end
+
+    private def parse_success_status_ranges(raw_value : String?)
+      return [200..299] of Range(Int32, Int32) unless raw_value
+
+      parts = raw_value.split(",").map(&.strip).reject(&.empty?)
+      raise ArgumentError.new("Success status list must not be empty.") if parts.empty?
+
+      parts.map do |part|
+        if part.includes?("-")
+          bounds = part.split("-", 2).map(&.strip)
+          raise ArgumentError.new("Invalid success status range '#{part}'. Use formats like '200-299' or '301'.") unless bounds.size == 2
+          start_code = parse_status_code(bounds[0], part)
+          end_code = parse_status_code(bounds[1], part)
+          raise ArgumentError.new("Invalid success status range '#{part}'. Start must be less than or equal to end.") if start_code > end_code
+          start_code..end_code
+        else
+          status_code = parse_status_code(part, part)
+          status_code..status_code
+        end
+      end
+    end
+
+    private def parse_status_code(value : String, source : String)
+      status_code = value.to_i?
+      raise ArgumentError.new("Invalid success status '#{source}'. Use HTTP status codes like '200', '204', or ranges like '300-399'.") unless status_code
+      unless (100..599).includes?(status_code)
+        raise ArgumentError.new("Success status '#{source}' is out of range. Use codes between 100 and 599.")
+      end
+      status_code
     end
 
     private def valid_url?(url : String)

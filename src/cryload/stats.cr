@@ -37,7 +37,7 @@ module Cryload
       getter :status_code_counts
       getter :error_counts
 
-      def initialize
+      def initialize(@success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
         @total_request_count = 0_i64
         @response_count = 0_i64
         @ok_requests = 0_i64
@@ -62,7 +62,7 @@ module Cryload
         @total_request_count += 1
         @response_count += 1
         @status_code_counts[status_code] += 1
-        if (200..299).includes?(status_code)
+        if success_status?(status_code)
           @ok_requests += 1
         else
           @not_ok_requests += 1
@@ -94,6 +94,10 @@ module Cryload
           @histogram_overflow_count += 1
         end
       end
+
+      private def success_status?(status_code : Int32)
+        @success_status_ranges.any? { |status_range| status_range.includes?(status_code) }
+      end
     end
 
     @ongoing_check_number : Int32
@@ -119,10 +123,11 @@ module Cryload
     getter :benchmark_start
     getter :url
     getter :json_output
+    getter :success_status_ranges
 
     TIME_IN_MILISECONDS = 1000
 
-    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @json_output : Bool = false)
+    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @json_output : Bool = false, @success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
       @total_request_count = 0_i64
       @response_count = 0_i64
       @ok_requests = 0_i64
@@ -250,13 +255,13 @@ module Cryload
     end
 
     def record_response(time_taken_ms : Float64, status_code : Int32)
-      batch = Batch.new
+      batch = Batch.new(@success_status_ranges)
       batch.record_response time_taken_ms, status_code
       merge_batch batch
     end
 
     def record_error(time_taken_ms : Float64, category : String)
-      batch = Batch.new
+      batch = Batch.new(@success_status_ranges)
       batch.record_error time_taken_ms, category
       merge_batch batch
     end
@@ -334,8 +339,8 @@ module Cryload
     end
   end
 
-  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "", json_output : Bool = false)
-    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, json_output
+  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "", json_output : Bool = false, success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
+    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, json_output, success_status_ranges
   end
 
   def self.stats

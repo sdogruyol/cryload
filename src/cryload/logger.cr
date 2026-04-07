@@ -29,6 +29,9 @@ module Cryload
       response_count = s.response_count
       exact_status_counts = s.status_code_counts
       error_counts = s.error_counts
+      success_status_ranges = s.success_status_ranges.map do |status_range|
+        status_range.begin == status_range.end ? status_range.begin.to_s : "#{status_range.begin}-#{status_range.end}"
+      end
 
       if s.json_output
         payload = {
@@ -50,9 +53,10 @@ module Cryload
             "p999"  => p999_ms,
           },
           "status_counts" => {
-            "2xx"     => s.ok_requests,
-            "non_2xx" => s.not_ok_requests,
+            "successful" => s.ok_requests,
+            "failed"     => s.not_ok_requests,
           },
+          "success_statuses"      => success_status_ranges,
           "response_status_codes" => exact_status_counts.transform_keys(&.to_s),
           "error_counts"          => error_counts,
         }
@@ -68,7 +72,8 @@ module Cryload
       puts "#{total} requests in #{elapsed}s"
       puts "Requests/sec:  #{rps}"
       puts "Responses: #{response_count}    Errors: #{error_count}"
-      puts "2xx: #{s.ok_requests}    Non-2xx: #{s.not_ok_requests}"
+      puts "Successful: #{s.ok_requests}    Failed: #{s.not_ok_requests}"
+      puts "Success statuses: #{success_status_ranges.join(", ")}"
       unless exact_status_counts.empty?
         details = exact_status_counts.keys.sort.map { |status| "#{status}: #{exact_status_counts[status]}" }.join("  ")
         puts "Status codes: #{details}"

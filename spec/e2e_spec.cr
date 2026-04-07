@@ -35,11 +35,11 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     output.to_s.should contain("Preparing to make it CRY for 10 requests")
-    output.to_s.should contain("2xx:")
+    output.to_s.should contain("Successful:")
     output.to_s.should contain("requests in")
   end
 
-  it "reports 2xx as successful requests" do
+  it "reports successful requests" do
     server = HTTP::Server.new do |context|
       context.response.status_code = 200
       context.response.print "OK"
@@ -61,10 +61,10 @@ describe "Cryload E2E" do
 
     server.close
 
-    output.to_s.should contain("2xx: 10")
+    output.to_s.should contain("Successful: 10")
   end
 
-  it "reports non-2xx as failed requests" do
+  it "reports failed requests" do
     server = HTTP::Server.new do |context|
       context.response.status_code = 404
       context.response.print "Not Found"
@@ -86,7 +86,7 @@ describe "Cryload E2E" do
 
     server.close
 
-    output.to_s.should contain("Non-2xx: 5")
+    output.to_s.should contain("Failed: 5")
     output.to_s.should contain("Status codes: 404: 5")
   end
 
@@ -267,10 +267,12 @@ describe "Cryload E2E" do
     server.close
 
     process.exit_code.should eq(0)
-    output.to_s.should contain("2xx: 5")
+    output.to_s.should contain("Successful: 5")
   end
 
   it "supports body-file and basic auth" do
+    expected_body = File.read(fixture_body_file)
+
     server = HTTP::Server.new do |context|
       auth_header = context.request.headers["Authorization"]?
       content_type = context.request.headers["Content-Type"]?
@@ -279,7 +281,7 @@ describe "Cryload E2E" do
       if context.request.method == "POST" &&
          auth_header == "Basic dXNlcjpzZWNyZXQ=" &&
          content_type == "application/json" &&
-         body == "{\"ping\":\"pong\"}"
+         body == expected_body
         context.response.status_code = 200
         context.response.print "OK"
       else
@@ -305,7 +307,7 @@ describe "Cryload E2E" do
     server.close
 
     process.exit_code.should eq(0)
-    output.to_s.should contain("2xx: 3")
+    output.to_s.should contain("Successful: 3")
   end
 
   it "supports user-agent and host-header convenience flags" do
@@ -337,7 +339,7 @@ describe "Cryload E2E" do
     server.close
 
     process.exit_code.should eq(0)
-    output.to_s.should contain("2xx: 3")
+    output.to_s.should contain("Successful: 3")
   end
 
   it "does not follow redirects by default" do
@@ -368,8 +370,8 @@ describe "Cryload E2E" do
     server.close
 
     process.exit_code.should eq(0)
-    output.to_s.should contain("2xx: 0")
-    output.to_s.should contain("Non-2xx: 3")
+    output.to_s.should contain("Successful: 0")
+    output.to_s.should contain("Failed: 3")
     output.to_s.should contain("Status codes: 302: 3")
   end
 
@@ -401,9 +403,53 @@ describe "Cryload E2E" do
     server.close
 
     process.exit_code.should eq(0)
-    output.to_s.should contain("2xx: 3")
-    output.to_s.should contain("Non-2xx: 0")
+    output.to_s.should contain("Successful: 3")
+    output.to_s.should contain("Failed: 0")
     output.to_s.should contain("Status codes: 200: 3")
+  end
+
+  it "supports custom success statuses" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 302
+      context.response.headers["Location"] = "/another"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}/redirect", "-n", "3", "--success-status", "200-299,302"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("Successful: 3")
+    output.to_s.should contain("Failed: 0")
+    output.to_s.should contain("Success statuses: 200-299, 302")
+  end
+
+  it "exits with error on invalid success status format" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--success-status", "abc"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Invalid success status")
+    process.exit_code.should eq(1)
   end
 
   it "exits with error on invalid header format" do
@@ -582,7 +628,9 @@ describe "Cryload E2E" do
     parsed["latency_ms"]["p95"].as_f.should be >= 0.0
     parsed["latency_ms"]["p99"].as_f.should be >= 0.0
     parsed["latency_ms"]["p999"].as_f.should be >= 0.0
-    parsed["status_counts"]["2xx"].as_i.should eq(20)
+    parsed["status_counts"]["successful"].as_i.should eq(20)
+    parsed["status_counts"]["failed"].as_i.should eq(0)
+    parsed["success_statuses"][0].as_s.should eq("200-299")
     parsed["response_status_codes"]["200"].as_i.should eq(20)
   end
 

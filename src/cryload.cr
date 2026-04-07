@@ -73,12 +73,13 @@ module Cryload
       @insecure : Bool = false,
       @rate_limit : Int32? = nil,
       @follow_redirects : Bool = false,
+      @success_status_ranges : Array(Range(Int32, Int32)) = [200..299],
     )
       @request_number = request_number || -1
       @duration_seconds = duration_seconds
       @duration_mode = !@duration_seconds.nil?
 
-      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @json_output
+      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @json_output, @success_status_ranges
       worker_count = @duration_mode ? {1, @connections}.max : {1, {@connections, @request_number}.min}.max
       Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count, @rate_limit
       request_channel, done_channel, worker_count = generate_request_channel
@@ -109,7 +110,7 @@ module Cryload
       spawn do
         client = create_http_client uri
         deadline = Time.instant + @duration_seconds.not_nil!.seconds
-        local_batch = Stats::Batch.new
+        local_batch = Stats::Batch.new(@success_status_ranges)
 
         while acquire_rate_slot(rate_limiter, deadline)
           create_request(client, uri, local_batch)
@@ -126,7 +127,7 @@ module Cryload
       spawn do
         client = create_http_client uri
         requests_for_this_worker = requests_per_worker worker_index, total_workers
-        local_batch = Stats::Batch.new
+        local_batch = Stats::Batch.new(@success_status_ranges)
 
         requests_for_this_worker.times do
           acquire_rate_slot rate_limiter
@@ -163,10 +164,10 @@ module Cryload
     end
 
     private def flush_batch(stats_channel, local_batch : Stats::Batch)
-      return Stats::Batch.new if local_batch.empty?
+      return Stats::Batch.new(@success_status_ranges) if local_batch.empty?
 
       stats_channel.send local_batch
-      Stats::Batch.new
+      Stats::Batch.new(@success_status_ranges)
     end
 
     # Spawns the receiver loop. In request mode: receive until count reached.
