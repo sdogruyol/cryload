@@ -183,6 +183,11 @@ Summary
   Responses: 1696170
   Transport errors: 0 (0.0%)
 
+Transfer
+  Total data: 374.14 MiB
+  Size/request: 231.0 B
+  Transfer/sec: 37.01 MiB/s
+
 Latency (ms)
   avg: 0.53   min: 0.19   stdev: 0.76   max: 35.39
 
