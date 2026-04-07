@@ -190,6 +190,21 @@ Percentiles (ms)
   p50: 0.41   p90: 0.81   p95: 0.96
   p99: 1.34   p999: 3.72
 
+Response Time Histogram (ms)
+  3.39 [120] |■■
+  6.59 [420] |■■■■■■■
+  9.79 [1690630] |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+
+Response Time Distribution (ms)
+  10.0% in 0.32
+  25.0% in 0.38
+  50.0% in 0.41
+  75.0% in 0.55
+  90.0% in 0.81
+  95.0% in 0.96
+  99.0% in 1.34
+  99.9% in 3.72
+
 Status Summary
   Successful: 1696170 (100.0%)
   Failed: 0 (0.0%)
