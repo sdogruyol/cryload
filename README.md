@@ -72,6 +72,7 @@ cryload <url> [options]
 | `-a`, `--basic-auth` | HTTP Basic auth in the form `user:password` |
 | `--timeout` | Client connect/read timeout in seconds |
 | `-q`, `--rate` | Total request rate limit in requests/sec |
+| `-L`, `--follow-redirects` | Follow HTTP redirects up to 5 hops |
 | `--insecure` | Accept invalid TLS certificates for HTTPS |
 | `--json` | Print final result as JSON |
 | `-h`, `--help` | Show help |
@@ -131,6 +132,11 @@ cryload http://localhost:3000/api -d 15 -c 50 --timeout 3
 Rate-limited run at 100 requests/sec total
 ```bash
 cryload http://localhost:3000/api -n 1000 -c 50 --rate 100
+```
+
+Follow redirects
+```bash
+cryload http://localhost:3000/redirect -n 100 -L
 ```
 
 HTTPS with self-signed cert (skip TLS verification)
