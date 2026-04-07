@@ -73,7 +73,8 @@ cryload <url> [options]
 | `--timeout` | Client connect/read timeout in seconds |
 | `-q`, `--rate` | Total request rate limit in requests/sec |
 | `-L`, `--follow-redirects` | Follow HTTP redirects up to 5 hops |
-| `--success-status` | Successful status codes/ranges (e.g. `200-299,301,302`) |
+| `--output-format` | Output format: `text`, `json`, `csv`, `quiet` |
+| `--success-status` | Treat specific status codes/ranges as successful |
 | `--insecure` | Accept invalid TLS certificates for HTTPS |
 | `--json` | Print final result as JSON |
 | `-h`, `--help` | Show help |
@@ -140,9 +141,9 @@ Follow redirects
 cryload http://localhost:3000/redirect -n 100 -L
 ```
 
-Treat redirects as successful without following them
+Treat redirects as success without following them
 ```bash
-cryload http://localhost:3000/redirect -n 100 --success-status 200-299,301,302,307,308
+cryload http://localhost:3000/redirect -n 100 --success-status 200-299,302
 ```
 
 HTTPS with self-signed cert (skip TLS verification)
@@ -153,6 +154,16 @@ cryload https://localhost:8443 -n 1000 --insecure
 JSON output for automation/CI
 ```bash
 cryload http://localhost:3000/api -n 1000 --json
+```
+
+CSV output for scripts
+```bash
+cryload http://localhost:3000/api -n 1000 --output-format csv
+```
+
+Quiet mode for exit-code-only checks
+```bash
+cryload http://localhost:3000/health -n 10 --output-format quiet
 ```
 
 **Example output:**
