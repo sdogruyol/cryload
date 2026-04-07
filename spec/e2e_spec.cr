@@ -139,6 +139,7 @@ describe "Cryload E2E" do
     output.to_s.should contain("--basic-auth")
     output.to_s.should contain("--timeout")
     output.to_s.should contain("--rate")
+    output.to_s.should contain("--follow-redirects")
     output.to_s.should contain("--insecure")
   end
 
@@ -337,6 +338,72 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     output.to_s.should contain("2xx: 3")
+  end
+
+  it "does not follow redirects by default" do
+    server = HTTP::Server.new do |context|
+      if context.request.path == "/redirect"
+        context.response.status_code = 302
+        context.response.headers["Location"] = "/final"
+      else
+        context.response.status_code = 200
+        context.response.print "OK"
+      end
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}/redirect", "-n", "3"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("2xx: 0")
+    output.to_s.should contain("Non-2xx: 3")
+    output.to_s.should contain("Status codes: 302: 3")
+  end
+
+  it "follows redirects with --follow-redirects" do
+    server = HTTP::Server.new do |context|
+      if context.request.path == "/redirect"
+        context.response.status_code = 302
+        context.response.headers["Location"] = "/final"
+      else
+        context.response.status_code = 200
+        context.response.print "OK"
+      end
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}/redirect", "-n", "3", "--follow-redirects"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("2xx: 3")
+    output.to_s.should contain("Non-2xx: 0")
+    output.to_s.should contain("Status codes: 200: 3")
   end
 
   it "exits with error on invalid header format" do

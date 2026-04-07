@@ -23,13 +23,14 @@ module Cryload
       timeout_seconds = @options[:timeout]?.try(&.as(Int32))
       rate_limit = @options[:rate]?.try(&.as(Int32))
       insecure = @options[:insecure]?.try(&.as(Bool)) || false
+      follow_redirects = @options[:follow_redirects]?.try(&.as(Bool)) || false
       headers = build_headers(@options[:headers].as(Array(String)))
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
-        Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds, insecure, rate_limit
+        Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects
       else
         numbers = @options[:numbers].as(Int32)
-        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output, method, body, headers, timeout_seconds, insecure, rate_limit
+        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects
       end
     end
 
@@ -89,6 +90,10 @@ module Cryload
 
           opts.on("-q RATE", "--rate RATE", "Total request rate limit in requests/sec") do |v|
             @options[:rate] = v.to_i
+          end
+
+          opts.on("-L", "--follow-redirects", "Follow HTTP redirects (up to 5 hops)") do
+            @options[:follow_redirects] = true
           end
 
           opts.on("--insecure", "Accept invalid TLS certificates (HTTPS only)") do

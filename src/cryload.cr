@@ -6,6 +6,24 @@ require "json"
 require "base64"
 
 module Cryload
+  DEFAULT_MAX_REDIRECTS = 5
+
+  def self.create_http_client(uri, timeout_seconds : Int32? = nil, insecure : Bool = false)
+    port = uri.port || (uri.scheme == "https" ? 443 : 80)
+    tls_context = if uri.scheme == "https"
+                    insecure ? OpenSSL::SSL::Context::Client.insecure : true
+                  else
+                    false
+                  end
+    client = HTTP::Client.new uri.host.not_nil!, port: port, tls: tls_context
+    if (timeout = timeout_seconds)
+      span = timeout.seconds
+      client.connect_timeout = span
+      client.read_timeout = span
+    end
+    client
+  end
+
   class RateLimiter
     @interval : Time::Span
     @next_slot : Time::Instant
@@ -54,6 +72,7 @@ module Cryload
       @timeout_seconds : Int32? = nil,
       @insecure : Bool = false,
       @rate_limit : Int32? = nil,
+      @follow_redirects : Bool = false,
     )
       @request_number = request_number || -1
       @duration_seconds = duration_seconds
@@ -217,19 +236,13 @@ module Cryload
                     else
                       false
                     end
-      client = HTTP::Client.new uri.host.not_nil!, port: port, tls: tls_context
-      if (timeout = @timeout_seconds)
-        span = timeout.seconds
-        client.connect_timeout = span
-        client.read_timeout = span
-      end
-      client
+      Cryload.create_http_client uri, @timeout_seconds, @insecure
     end
 
     # Creates a new request to the given URI
     private def create_request(client, uri, local_batch : Stats::Batch)
       started_at = Time.instant
-      request = Request.new client, uri, @http_method, @http_headers, @http_body
+      request = Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects
       local_batch.record_response request.time_taken, request.status_code
     rescue ex : Socket::Error | IO::Error | OpenSSL::SSL::Error
       elapsed_ms = (Time.instant - started_at.not_nil!).total_seconds * 1000.0
