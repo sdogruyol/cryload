@@ -6,8 +6,18 @@ module Cryload
     # Logs the test header
     def self.log_header(url : String, duration_sec : Int32?, request_count : Int32?, connections : Int32, rate_limit : Int32?)
       return unless Cryload.stats.output_format == "text"
+
+      mode = if duration_sec
+               "duration (#{duration_sec}s)"
+             else
+               "request-count (#{request_count || 0} requests)"
+             end
+
       puts "Running load test @ #{url}"
-      puts "Rate limit: #{rate_limit} req/s" if rate_limit
+      puts "Mode: #{mode}"
+      puts "Connections: #{connections}"
+      puts "Rate limit: #{rate_limit ? "#{rate_limit} req/s" : "unlimited"}"
+      puts "Success statuses: #{format_success_statuses(Cryload.stats.success_status_ranges)}"
       puts
     end
 
@@ -81,23 +91,31 @@ module Cryload
 
       return if s.quiet_output
 
-      puts "  Latency (ms)      avg: #{avg_ms}   min: #{min_ms}   stdev: #{stdev_ms}   max: #{max_ms}"
+      puts "Summary"
+      puts "  Total requests: #{total}"
+      puts "  Total time: #{elapsed}s"
+      puts "  Requests/sec: #{rps}"
+      puts "  Responses: #{response_count}"
+      puts "  Transport errors: #{error_count} (#{transport_error_percent}%)"
       puts
-      puts "  Percentiles (ms)  p50: #{p50_ms}   p90: #{p90_ms}   p95: #{p95_ms}"
-      puts "                    p99: #{p99_ms}   p999: #{p999_ms}"
+      puts "Latency (ms)"
+      puts "  avg: #{avg_ms}   min: #{min_ms}   stdev: #{stdev_ms}   max: #{max_ms}"
       puts
-      puts "#{total} requests in #{elapsed}s"
-      puts "Requests/sec:  #{rps}"
-      puts "Responses: #{response_count}    Errors: #{error_count} (#{transport_error_percent}%)"
-      puts "Successful: #{s.ok_requests} (#{success_percent}%)    Failed: #{s.not_ok_requests} (#{failure_percent}%)"
-      puts "Success statuses: #{success_status_ranges.join(", ")}"
+      puts "Percentiles (ms)"
+      puts "  p50: #{p50_ms}   p90: #{p90_ms}   p95: #{p95_ms}"
+      puts "  p99: #{p99_ms}   p999: #{p999_ms}"
+      puts
+      puts "Status Summary"
+      puts "  Successful: #{s.ok_requests} (#{success_percent}%)"
+      puts "  Failed: #{s.not_ok_requests} (#{failure_percent}%)"
+      puts "  Success statuses: #{success_status_ranges.join(", ")}"
       unless exact_status_counts.empty?
         details = exact_status_counts.keys.sort.map { |status| "#{status}: #{exact_status_counts[status]}" }.join("  ")
-        puts "Status codes: #{details}"
+        puts "  Status codes: #{details}"
       end
       unless error_counts.empty?
         details = error_counts.keys.sort.map { |category| "#{category}: #{error_counts[category]}" }.join("  ")
-        puts "Transport errors: #{details}"
+        puts "  Error details: #{details}"
       end
     end
 
@@ -167,6 +185,12 @@ module Cryload
     private def self.percentage(count : Int64, total : Int64)
       return 0.0 if total == 0
       ((count.to_f / total) * 100.0).round(2)
+    end
+
+    private def self.format_success_statuses(status_ranges : Array(Range(Int32, Int32)))
+      status_ranges.map do |status_range|
+        status_range.begin == status_range.end ? status_range.begin.to_s : "#{status_range.begin}-#{status_range.end}"
+      end.join(", ")
     end
   end
 end

@@ -35,9 +35,11 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     output.to_s.should contain("Preparing to make it CRY for 10 requests")
+    output.to_s.should contain("Mode: request-count")
+    output.to_s.should contain("Connections: 10")
     output.to_s.should contain("Successful:")
     output.to_s.should contain("min:")
-    output.to_s.should contain("requests in")
+    output.to_s.should contain("Summary")
   end
 
   it "reports successful requests" do
@@ -114,7 +116,7 @@ describe "Cryload E2E" do
     server.close
 
     output.to_s.should contain("Running load test @")
-    output.to_s.should contain("20 requests in")
+    output.to_s.should contain("Total requests: 20")
   end
 
   it "prints help when -h is passed" do
@@ -209,8 +211,8 @@ describe "Cryload E2E" do
     combined = output.to_s + error.to_s
     combined.should contain("Connection failed")
     combined.should contain("Continuing and counting transport errors")
-    output.to_s.should contain("Errors: 5")
-    output.to_s.should contain("Transport errors: Socket::ConnectError: 5")
+    output.to_s.should contain("Transport errors: 5 (100.0%)")
+    output.to_s.should contain("Error details: Socket::ConnectError: 5")
     process.exit_code.should eq(1)
   end
 
@@ -237,7 +239,8 @@ describe "Cryload E2E" do
     server.close
 
     output.to_s.should contain("Preparing to make it CRY for 1 seconds")
-    output.to_s.should contain("requests in")
+    output.to_s.should contain("Mode: duration (1s)")
+    output.to_s.should contain("Total requests:")
   end
 
   it "supports custom method, header and body" do
