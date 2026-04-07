@@ -73,6 +73,7 @@ cryload <url> [options]
 | `--timeout` | Client connect/read timeout in seconds |
 | `-q`, `--rate` | Total request rate limit in requests/sec |
 | `-L`, `--follow-redirects` | Follow HTTP redirects up to 5 hops |
+| `--success-status` | Successful status codes/ranges (e.g. `200-299,301,302`) |
 | `--insecure` | Accept invalid TLS certificates for HTTPS |
 | `--json` | Print final result as JSON |
 | `-h`, `--help` | Show help |
@@ -139,6 +140,11 @@ Follow redirects
 cryload http://localhost:3000/redirect -n 100 -L
 ```
 
+Treat redirects as successful without following them
+```bash
+cryload http://localhost:3000/redirect -n 100 --success-status 200-299,301,302,307,308
+```
+
 HTTPS with self-signed cert (skip TLS verification)
 ```bash
 cryload https://localhost:8443 -n 1000 --insecure
@@ -163,7 +169,8 @@ Running load test @ http://localhost:3000/
 1696170 requests in 10.11s
 Requests/sec:  167803.62
 Responses: 1696170    Errors: 0
-2xx: 1696170    Non-2xx: 0
+Successful: 1696170    Failed: 0
+Success statuses: 200-299
 Status codes: 200: 1696170
 ```
 
