@@ -51,6 +51,8 @@ module Cryload
       exact_status_counts = s.status_code_counts
       error_counts = s.error_counts
       histogram_bins = s.latency_histogram_bins
+      status_distribution = build_status_distribution exact_status_counts, response_count
+      transport_error_distribution = build_error_distribution error_counts, error_count
       success_status_ranges = s.success_status_ranges.map do |status_range|
         status_range.begin == status_range.end ? status_range.begin.to_s : "#{status_range.begin}-#{status_range.end}"
       end
@@ -107,9 +109,23 @@ module Cryload
             "failed"             => s.not_ok_requests,
             "failed_percent"     => failure_percent,
           },
-          "success_statuses"        => success_status_ranges,
-          "response_status_codes"   => exact_status_counts.transform_keys(&.to_s),
-          "error_counts"            => error_counts,
+          "success_statuses"         => success_status_ranges,
+          "response_status_codes"    => exact_status_counts.transform_keys(&.to_s),
+          "status_code_distribution" => status_distribution.map do |entry|
+            {
+              "code"    => entry[:label],
+              "count"   => entry[:count],
+              "percent" => entry[:percent],
+            }
+          end,
+          "error_counts"                 => error_counts,
+          "transport_error_distribution" => transport_error_distribution.map do |entry|
+            {
+              "category" => entry[:label],
+              "count"    => entry[:count],
+              "percent"  => entry[:percent],
+            }
+          end,
           "transport_error_percent" => transport_error_percent,
         }
         puts payload.to_json
@@ -117,7 +133,7 @@ module Cryload
       end
 
       if s.csv_output
-        print_csv total, response_count, error_count, elapsed, rps, total_response_bytes, average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, s.ok_requests, s.not_ok_requests, success_percent, failure_percent, transport_error_percent, success_status_ranges, exact_status_counts, error_counts
+        print_csv total, response_count, error_count, elapsed, rps, total_response_bytes, average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, s.ok_requests, s.not_ok_requests, success_percent, failure_percent, transport_error_percent, success_status_ranges, status_distribution, transport_error_distribution
         return
       end
 
@@ -159,17 +175,23 @@ module Cryload
       puts "  Successful: #{s.ok_requests} (#{success_percent}%)"
       puts "  Failed: #{s.not_ok_requests} (#{failure_percent}%)"
       puts "  Success statuses: #{success_status_ranges.join(", ")}"
-      unless exact_status_counts.empty?
-        details = exact_status_counts.keys.sort.map { |status| "#{status}: #{exact_status_counts[status]}" }.join("  ")
-        puts "  Status codes: #{details}"
+      unless status_distribution.empty?
+        puts
+        puts "Status Code Distribution"
+        status_distribution.each do |entry|
+          puts "  [#{entry[:label]}] #{entry[:count]} responses (#{entry[:percent]}%)"
+        end
       end
-      unless error_counts.empty?
-        details = error_counts.keys.sort.map { |category| "#{category}: #{error_counts[category]}" }.join("  ")
-        puts "  Error details: #{details}"
+      unless transport_error_distribution.empty?
+        puts
+        puts "Error Distribution"
+        transport_error_distribution.each do |entry|
+          puts "  [#{entry[:label]}] #{entry[:count]} errors (#{entry[:percent]}%)"
+        end
       end
     end
 
-    private def self.print_csv(total, response_count, error_count, elapsed, rps, total_response_bytes, average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, successful_count, failed_count, successful_percent, failed_percent, transport_error_percent, success_status_ranges, exact_status_counts, error_counts)
+    private def self.print_csv(total, response_count, error_count, elapsed, rps, total_response_bytes, average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, successful_count, failed_count, successful_percent, failed_percent, transport_error_percent, success_status_ranges, status_distribution, transport_error_distribution)
       headers = [
         "url",
         "duration_mode",
@@ -196,12 +218,12 @@ module Cryload
         "failed_percent",
         "transport_error_percent",
         "success_statuses",
-        "response_status_codes",
-        "error_counts",
+        "status_code_distribution",
+        "transport_error_distribution",
       ]
       success_statuses = success_status_ranges.join(";")
-      status_codes = exact_status_counts.keys.sort.map { |status| "#{status}:#{exact_status_counts[status]}" }.join(";")
-      errors = error_counts.keys.sort.map { |category| "#{category}:#{error_counts[category]}" }.join(";")
+      status_codes = status_distribution.map { |entry| "#{entry[:label]}:#{entry[:count]}:#{entry[:percent]}%" }.join(";")
+      errors = transport_error_distribution.map { |entry| "#{entry[:label]}:#{entry[:count]}:#{entry[:percent]}%" }.join(";")
       row = [
         Cryload.stats.url,
         Cryload.stats.duration_mode.to_s,
@@ -273,6 +295,30 @@ module Cryload
       status_ranges.map do |status_range|
         status_range.begin == status_range.end ? status_range.begin.to_s : "#{status_range.begin}-#{status_range.end}"
       end.join(", ")
+    end
+
+    private def self.build_status_distribution(status_counts : Hash(Int32, Int64), total_responses : Int64)
+      status_counts
+        .map do |status_code, count|
+          {
+            label:   status_code.to_s,
+            count:   count,
+            percent: percentage(count, total_responses),
+          }
+        end
+        .sort_by { |entry| {-entry[:count], entry[:label].to_i} }
+    end
+
+    private def self.build_error_distribution(error_counts : Hash(String, Int64), total_errors : Int64)
+      error_counts
+        .map do |category, count|
+          {
+            label:   category,
+            count:   count,
+            percent: percentage(count, total_errors),
+          }
+        end
+        .sort_by { |entry| {-entry[:count], entry[:label]} }
     end
   end
 end

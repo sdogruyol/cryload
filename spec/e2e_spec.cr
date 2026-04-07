@@ -93,7 +93,8 @@ describe "Cryload E2E" do
     server.close
 
     output.to_s.should contain("Failed: 5")
-    output.to_s.should contain("Status codes: 404: 5")
+    output.to_s.should contain("Status Code Distribution")
+    output.to_s.should contain("[404] 5 responses (100.0%)")
   end
 
   it "accepts -c/--connections for parallel requests" do
@@ -215,7 +216,8 @@ describe "Cryload E2E" do
     combined.should contain("Connection failed")
     combined.should contain("Continuing and counting transport errors")
     output.to_s.should contain("Transport errors: 5 (100.0%)")
-    output.to_s.should contain("Error details: Socket::ConnectError: 5")
+    output.to_s.should contain("Error Distribution")
+    output.to_s.should contain("[Socket::ConnectError] 5 errors (100.0%)")
     process.exit_code.should eq(1)
   end
 
@@ -381,7 +383,8 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
     output.to_s.should contain("Successful: 0")
     output.to_s.should contain("Failed: 3")
-    output.to_s.should contain("Status codes: 302: 3")
+    output.to_s.should contain("Status Code Distribution")
+    output.to_s.should contain("[302] 3 responses (100.0%)")
   end
 
   it "follows redirects with --follow-redirects" do
@@ -414,7 +417,8 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
     output.to_s.should contain("Successful: 3")
     output.to_s.should contain("Failed: 0")
-    output.to_s.should contain("Status codes: 200: 3")
+    output.to_s.should contain("Status Code Distribution")
+    output.to_s.should contain("[200] 3 responses (100.0%)")
   end
 
   it "supports custom success statuses" do
@@ -687,6 +691,8 @@ describe "Cryload E2E" do
     parsed["status_counts"]["failed_percent"].as_f.should eq(0.0)
     parsed["success_statuses"][0].as_s.should eq("200-299")
     parsed["response_status_codes"]["200"].as_i.should eq(20)
+    parsed["status_code_distribution"][0]["code"].as_s.should eq("200")
+    parsed["status_code_distribution"][0]["percent"].as_f.should eq(100.0)
     parsed["transport_error_percent"].as_f.should eq(0.0)
   end
 
@@ -854,5 +860,7 @@ describe "Cryload E2E" do
     parsed["transport_errors"].as_i.should eq(3)
     parsed["transport_error_percent"].as_f.should eq(100.0)
     parsed["error_counts"]["Socket::ConnectError"].as_i.should eq(3)
+    parsed["transport_error_distribution"][0]["category"].as_s.should eq("Socket::ConnectError")
+    parsed["transport_error_distribution"][0]["percent"].as_f.should eq(100.0)
   end
 end
