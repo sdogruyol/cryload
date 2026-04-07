@@ -1,6 +1,6 @@
 # Unreleased
 
-- **Request Ergonomics** — Added `--body-file` for reading request payloads from disk and `--basic-auth` / `-a` for Basic authentication
+- **Request Ergonomics** — Added `--body-file` for reading request payloads from disk, `--basic-auth` / `-a` for Basic authentication, `--user-agent` for User-Agent overrides, and `--host-header` for explicit Host header control
 
 # 2.3.0 (06-04-2026)
 
