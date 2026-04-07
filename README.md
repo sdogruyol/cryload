@@ -1,7 +1,7 @@
 # cryload - Powerful HTTP Benchmarking Tool
 
 <p align="center">
-  <img src="assets/logo.png" alt="cryload logo" width="320">
+  <img src="assets/logo.png" alt="cryload logo" width="240">
 </p>
 
 [![CI](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml/badge.svg)](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml)
