@@ -214,7 +214,9 @@ Status Summary
   Successful: 1696170 (100.0%)
   Failed: 0 (0.0%)
   Success statuses: 200-299
-  Status codes: 200: 1696170
+
+Status Code Distribution
+  [200] 1696170 responses (100.0%)
 ```
 
 ## Built With Crystal
