@@ -43,6 +43,8 @@ cryload http://localhost:3000/health -n 10 --output-format quiet
 cryload http://localhost:3000/redirect -n 100 --success-status 200-299,302
 ```
 
+- **Reporting Polish** — Text/JSON/CSV reports now include minimum latency plus success/failure and transport error percentages
+
 
 # 2.3.0 (06-04-2026)
 
