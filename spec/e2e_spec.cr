@@ -40,6 +40,7 @@ describe "Cryload E2E" do
     output.to_s.should contain("Total data:")
     output.to_s.should contain("Successful:")
     output.to_s.should contain("min:")
+    output.to_s.should contain("Fastest:")
     output.to_s.should contain("Summary")
     output.to_s.should contain("Response Time Histogram (ms)")
     output.to_s.should contain("Response Time Distribution (ms)")
@@ -672,6 +673,7 @@ describe "Cryload E2E" do
     parsed["transfer"]["total_bytes"].as_i.should eq(response_body.bytesize * 20)
     parsed["transfer"]["size_per_request_bytes"].as_f.should eq(response_body.bytesize.to_f)
     parsed["transfer"]["bytes_per_second"].as_f.should be > 0.0
+    parsed["latency_ms"]["fastest"].as_f.should be >= 0.0
     parsed["latency_ms"]["min"].as_f.should be >= 0.0
     parsed["latency_ms"]["p10"].as_f.should be >= 0.0
     parsed["latency_ms"]["p25"].as_f.should be >= 0.0
@@ -681,6 +683,7 @@ describe "Cryload E2E" do
     parsed["latency_ms"]["p95"].as_f.should be >= 0.0
     parsed["latency_ms"]["p99"].as_f.should be >= 0.0
     parsed["latency_ms"]["p999"].as_f.should be >= 0.0
+    parsed["latency_ms"]["slowest"].as_f.should be >= 0.0
     parsed["latency_distribution_ms"]["p10"].as_f.should be >= 0.0
     parsed["latency_distribution_ms"]["p999"].as_f.should be >= 0.0
     parsed["latency_histogram"].as_a.size.should be > 0
@@ -722,7 +725,7 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
     lines = output.to_s.lines.map(&.strip).reject(&.empty?)
     lines.size.should eq(2)
-    lines[0].should contain("url,duration_mode,requests,responses,transport_errors,elapsed_seconds,requests_per_second,total_response_bytes,size_per_request_bytes,bytes_per_second")
+    lines[0].should contain("url,duration_mode,requests,responses,transport_errors,elapsed_seconds,requests_per_second,total_response_bytes,size_per_request_bytes,bytes_per_second,latency_avg_ms,latency_fastest_ms,latency_min_ms,latency_stdev_ms,latency_slowest_ms,latency_max_ms")
     lines[1].should contain(",25,5.0,")
   end
 

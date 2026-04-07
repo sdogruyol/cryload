@@ -72,18 +72,20 @@ module Cryload
             "bytes_per_second"       => bytes_per_second.round(2),
           },
           "latency_ms" => {
-            "min"   => min_ms,
-            "p50"   => p50_ms,
-            "p25"   => p25_ms,
-            "p90"   => p90_ms,
-            "avg"   => avg_ms,
-            "stdev" => stdev_ms,
-            "max"   => max_ms,
-            "p95"   => p95_ms,
-            "p99"   => p99_ms,
-            "p999"  => p999_ms,
-            "p10"   => p10_ms,
-            "p75"   => p75_ms,
+            "avg"     => avg_ms,
+            "fastest" => min_ms,
+            "min"     => min_ms,
+            "stdev"   => stdev_ms,
+            "slowest" => max_ms,
+            "max"     => max_ms,
+            "p10"     => p10_ms,
+            "p25"     => p25_ms,
+            "p50"     => p50_ms,
+            "p75"     => p75_ms,
+            "p90"     => p90_ms,
+            "p95"     => p95_ms,
+            "p99"     => p99_ms,
+            "p999"    => p999_ms,
           },
           "latency_distribution_ms" => {
             "p10"  => p10_ms,
@@ -145,6 +147,8 @@ module Cryload
       puts "  Requests/sec: #{rps}"
       puts "  Responses: #{response_count}"
       puts "  Transport errors: #{error_count} (#{transport_error_percent}%)"
+      puts "  Fastest: #{min_ms} ms"
+      puts "  Slowest: #{max_ms} ms"
       puts
       puts "Transfer"
       puts "  Total data: #{format_bytes(total_response_bytes)}"
@@ -204,8 +208,10 @@ module Cryload
         "size_per_request_bytes",
         "bytes_per_second",
         "latency_avg_ms",
+        "latency_fastest_ms",
         "latency_min_ms",
         "latency_stdev_ms",
+        "latency_slowest_ms",
         "latency_max_ms",
         "latency_p50_ms",
         "latency_p90_ms",
@@ -237,7 +243,9 @@ module Cryload
         bytes_per_second.round(2).to_s,
         avg_ms.to_s,
         min_ms.to_s,
+        min_ms.to_s,
         stdev_ms.to_s,
+        max_ms.to_s,
         max_ms.to_s,
         p50_ms.to_s,
         p90_ms.to_s,
