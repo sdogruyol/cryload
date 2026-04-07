@@ -140,6 +140,8 @@ describe "Cryload E2E" do
     output.to_s.should contain("--timeout")
     output.to_s.should contain("--rate")
     output.to_s.should contain("--follow-redirects")
+    output.to_s.should contain("--output-format")
+    output.to_s.should contain("--success-status")
     output.to_s.should contain("--insecure")
   end
 
@@ -596,6 +598,38 @@ describe "Cryload E2E" do
     process.exit_code.should eq(1)
   end
 
+  it "exits with error on invalid output format" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--output-format", "xml"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Invalid output format")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error when --json conflicts with another output format" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--json", "--output-format", "csv"],
+      output: output,
+      error: error,
+      chdir: File.dirname(__DIR__)
+    )
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Please specify only one JSON output source")
+    process.exit_code.should eq(1)
+  end
+
   it "outputs json with --json including p95 and p99" do
     server = HTTP::Server.new do |context|
       context.response.status_code = 200
@@ -632,6 +666,61 @@ describe "Cryload E2E" do
     parsed["status_counts"]["failed"].as_i.should eq(0)
     parsed["success_statuses"][0].as_s.should eq("200-299")
     parsed["response_status_codes"]["200"].as_i.should eq(20)
+  end
+
+  it "outputs csv with --output-format csv" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "5", "--output-format", "csv"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    lines = output.to_s.lines.map(&.strip).reject(&.empty?)
+    lines.size.should eq(2)
+    lines[0].should contain("url,duration_mode,requests,responses")
+    lines[1].should contain("false,5,5,0")
+  end
+
+  it "suppresses final output with --output-format quiet" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = Process.run(
+      "crystal",
+      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "5", "--output-format", "quiet"],
+      output: output,
+      chdir: File.dirname(__DIR__)
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should eq("")
   end
 
   it "rate limits request mode with --rate" do

@@ -17,7 +17,7 @@ module Cryload
 
       connections = @options[:connections].as(Int32)
       server = @options[:server].as(String)
-      json_output = @options[:json]?.try(&.as(Bool)) || false
+      output_format = resolve_output_format
       method = @options[:method].as(String)
       body = resolve_body
       timeout_seconds = @options[:timeout]?.try(&.as(Int32))
@@ -28,10 +28,10 @@ module Cryload
       headers = build_headers(@options[:headers].as(Array(String)))
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
-        Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges
+        Cryload::LoadGenerator.new server, nil, connections, duration, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges
       else
         numbers = @options[:numbers].as(Int32)
-        Cryload::LoadGenerator.new server, numbers, connections, nil, json_output, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges
+        Cryload::LoadGenerator.new server, numbers, connections, nil, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges
       end
     end
 
@@ -95,6 +95,10 @@ module Cryload
 
           opts.on("-L", "--follow-redirects", "Follow HTTP redirects (up to 5 hops)") do
             @options[:follow_redirects] = true
+          end
+
+          opts.on("--output-format FORMAT", "Output format: text, json, csv, quiet") do |v|
+            @options[:output_format] = v.downcase
           end
 
           opts.on("--success-status CODES", "Successful status codes/ranges (e.g. 200-299,301,304)") do |v|
@@ -225,6 +229,23 @@ module Cryload
         end
       end
 
+      if @options.has_key?(:output_format)
+        output_format = @options[:output_format].as(String)
+        valid_formats = {"text", "json", "csv", "quiet"}
+        unless valid_formats.includes?(output_format)
+          STDERR.puts "Invalid output format '#{output_format}'. Allowed: #{valid_formats.join(", ")}".colorize(:red)
+          return false
+        end
+      end
+
+      if @options.has_key?(:json) && @options.has_key?(:output_format)
+        output_format = @options[:output_format].as(String)
+        if output_format != "json"
+          STDERR.puts "Please specify only one JSON output source: either '--json' or '--output-format json'.".colorize(:red)
+          return false
+        end
+      end
+
       if @options.has_key?(:success_status)
         begin
           parse_success_status_ranges(@options[:success_status].as(String))
@@ -270,12 +291,47 @@ module Cryload
     end
 
     private def print_start_message(message : String)
-      return if json_output?
+      return unless resolve_output_format == "text"
       puts message.colorize(:green)
     end
 
     private def json_output?
-      @options[:json]?.try(&.as(Bool)) || false
+      resolve_output_format == "json"
+    end
+
+    private def resolve_output_format
+      return "json" if @options[:json]?.try(&.as(Bool))
+      @options[:output_format]?.try(&.as(String)) || "text"
+    end
+
+    private def parse_success_status_ranges(raw_value : String?)
+      return [200..299] of Range(Int32, Int32) unless raw_value
+
+      parts = raw_value.split(",").map(&.strip).reject(&.empty?)
+      raise ArgumentError.new("Success status list must not be empty.") if parts.empty?
+
+      parts.map do |part|
+        if part.includes?("-")
+          bounds = part.split("-", 2).map(&.strip)
+          raise ArgumentError.new("Invalid success status range '#{part}'. Use formats like '200-299' or '301'.") unless bounds.size == 2
+          start_code = parse_status_code(bounds[0], part)
+          end_code = parse_status_code(bounds[1], part)
+          raise ArgumentError.new("Invalid success status range '#{part}'. Start must be less than or equal to end.") if start_code > end_code
+          start_code..end_code
+        else
+          status_code = parse_status_code(part, part)
+          status_code..status_code
+        end
+      end
+    end
+
+    private def parse_status_code(value : String, source : String)
+      status_code = value.to_i?
+      raise ArgumentError.new("Invalid success status '#{source}'. Use HTTP status codes like '200', '204', or ranges like '300-399'.") unless status_code
+      unless (100..599).includes?(status_code)
+        raise ArgumentError.new("Success status '#{source}' is out of range. Use codes between 100 and 599.")
+      end
+      status_code
     end
 
     private def resolve_body
@@ -333,36 +389,6 @@ module Cryload
       headers.any? do |header|
         header.split(":", 2)[0]?.try(&.strip.downcase) == expected_name_downcase
       end
-    end
-
-    private def parse_success_status_ranges(raw_value : String?)
-      return [200..299] of Range(Int32, Int32) unless raw_value
-
-      parts = raw_value.split(",").map(&.strip).reject(&.empty?)
-      raise ArgumentError.new("Success status list must not be empty.") if parts.empty?
-
-      parts.map do |part|
-        if part.includes?("-")
-          bounds = part.split("-", 2).map(&.strip)
-          raise ArgumentError.new("Invalid success status range '#{part}'. Use formats like '200-299' or '301'.") unless bounds.size == 2
-          start_code = parse_status_code(bounds[0], part)
-          end_code = parse_status_code(bounds[1], part)
-          raise ArgumentError.new("Invalid success status range '#{part}'. Start must be less than or equal to end.") if start_code > end_code
-          start_code..end_code
-        else
-          status_code = parse_status_code(part, part)
-          status_code..status_code
-        end
-      end
-    end
-
-    private def parse_status_code(value : String, source : String)
-      status_code = value.to_i?
-      raise ArgumentError.new("Invalid success status '#{source}'. Use HTTP status codes like '200', '204', or ranges like '300-399'.") unless status_code
-      unless (100..599).includes?(status_code)
-        raise ArgumentError.new("Success status '#{source}' is out of range. Use codes between 100 and 599.")
-      end
-      status_code
     end
 
     private def valid_url?(url : String)

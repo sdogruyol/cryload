@@ -1,9 +1,11 @@
+require "csv"
+
 module Cryload
   # Singleton class which handles all the logging
   class Logger
     # Logs the test header
     def self.log_header(url : String, duration_sec : Int32?, request_count : Int32?, connections : Int32, rate_limit : Int32?)
-      return if Cryload.stats.json_output
+      return unless Cryload.stats.output_format == "text"
       puts "Running load test @ #{url}"
       puts "Rate limit: #{rate_limit} req/s" if rate_limit
       puts
@@ -64,6 +66,13 @@ module Cryload
         return
       end
 
+      if s.csv_output
+        print_csv total, response_count, error_count, elapsed, rps, avg_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, s.ok_requests, s.not_ok_requests, success_status_ranges, exact_status_counts, error_counts
+        return
+      end
+
+      return if s.quiet_output
+
       puts "  Latency (ms)      avg: #{avg_ms}   stdev: #{stdev_ms}   max: #{max_ms}"
       puts
       puts "  Percentiles (ms)  p50: #{p50_ms}   p90: #{p90_ms}   p95: #{p95_ms}"
@@ -82,6 +91,61 @@ module Cryload
         details = error_counts.keys.sort.map { |category| "#{category}: #{error_counts[category]}" }.join("  ")
         puts "Transport errors: #{details}"
       end
+    end
+
+    private def self.print_csv(total, response_count, error_count, elapsed, rps, avg_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, successful_count, failed_count, success_status_ranges, exact_status_counts, error_counts)
+      headers = [
+        "url",
+        "duration_mode",
+        "requests",
+        "responses",
+        "transport_errors",
+        "elapsed_seconds",
+        "requests_per_second",
+        "latency_avg_ms",
+        "latency_stdev_ms",
+        "latency_max_ms",
+        "latency_p50_ms",
+        "latency_p90_ms",
+        "latency_p95_ms",
+        "latency_p99_ms",
+        "latency_p999_ms",
+        "successful",
+        "failed",
+        "success_statuses",
+        "response_status_codes",
+        "error_counts",
+      ]
+      success_statuses = success_status_ranges.join(";")
+      status_codes = exact_status_counts.keys.sort.map { |status| "#{status}:#{exact_status_counts[status]}" }.join(";")
+      errors = error_counts.keys.sort.map { |category| "#{category}:#{error_counts[category]}" }.join(";")
+      row = [
+        Cryload.stats.url,
+        Cryload.stats.duration_mode.to_s,
+        total.to_s,
+        response_count.to_s,
+        error_count.to_s,
+        elapsed.to_s,
+        rps.to_s,
+        avg_ms.to_s,
+        stdev_ms.to_s,
+        max_ms.to_s,
+        p50_ms.to_s,
+        p90_ms.to_s,
+        p95_ms.to_s,
+        p99_ms.to_s,
+        p999_ms.to_s,
+        successful_count.to_s,
+        failed_count.to_s,
+        success_statuses,
+        status_codes,
+        errors,
+      ]
+      csv_output = CSV.build do |csv|
+        csv.row headers
+        csv.row row
+      end
+      puts csv_output
     end
   end
 end

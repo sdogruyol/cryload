@@ -7,6 +7,7 @@ module Cryload
 
     # Worker-local stats batch flushed periodically to the global collector.
     class Batch
+      @success_status_ranges : Array(Range(Int32, Int32))
       @total_request_count : Int64
       @response_count : Int64
       @ok_requests : Int64
@@ -122,12 +123,12 @@ module Cryload
     getter :duration_mode
     getter :benchmark_start
     getter :url
-    getter :json_output
+    getter :output_format
     getter :success_status_ranges
 
     TIME_IN_MILISECONDS = 1000
 
-    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @json_output : Bool = false, @success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
+    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @output_format : String = "text", @success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
       @total_request_count = 0_i64
       @response_count = 0_i64
       @ok_requests = 0_i64
@@ -250,6 +251,18 @@ module Cryload
       end
     end
 
+    def json_output
+      @output_format == "json"
+    end
+
+    def csv_output
+      @output_format == "csv"
+    end
+
+    def quiet_output
+      @output_format == "quiet"
+    end
+
     def <<(request : Request)
       record_response request.time_taken, request.status_code
     end
@@ -339,8 +352,8 @@ module Cryload
     end
   end
 
-  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "", json_output : Bool = false, success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
-    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, json_output, success_status_ranges
+  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "", output_format : String = "text", success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
+    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, output_format, success_status_ranges
   end
 
   def self.stats
