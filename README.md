@@ -22,7 +22,29 @@ Built with [Crystal](https://crystal-lang.org/) for high performance and low ove
 
 ## Installation
 
-### Option 1: Prebuilt binary (recommended)
+### Option 1: Install script (recommended)
+
+Downloads the matching asset from [Releases](https://github.com/sdogruyol/cryload/releases), verifies SHA256, and installs to `~/.local/bin` (or `%USERPROFILE%\.local\bin` on Windows).
+
+**Linux / macOS** (needs `curl` or `wget`, and `sha256sum` or `shasum`):
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh -s
+```
+
+Install a specific version:
+
+```bash
+VERSION=v3.0.0 curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh -s
+```
+
+**Windows** (PowerShell):
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.ps1 | iex
+```
+
+### Option 2: Prebuilt binary
 
 Download the latest prebuilt binary from the [Releases page](https://github.com/sdogruyol/cryload/releases), then make it executable:
 
@@ -31,7 +53,7 @@ chmod +x cryload
 ./cryload --help
 ```
 
-### Option 2: Build from source
+### Option 3: Build from source
 
 Requires Crystal `1.19.0` or later.
 
