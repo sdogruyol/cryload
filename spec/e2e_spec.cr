@@ -40,6 +40,8 @@ describe "Cryload E2E" do
     output.to_s.should contain("Successful:")
     output.to_s.should contain("min:")
     output.to_s.should contain("Summary")
+    output.to_s.should contain("Response Time Histogram (ms)")
+    output.to_s.should contain("Response Time Distribution (ms)")
   end
 
   it "reports successful requests" do
@@ -662,11 +664,18 @@ describe "Cryload E2E" do
     parsed["responses"].as_i.should eq(20)
     parsed["transport_errors"].as_i.should eq(0)
     parsed["latency_ms"]["min"].as_f.should be >= 0.0
+    parsed["latency_ms"]["p10"].as_f.should be >= 0.0
+    parsed["latency_ms"]["p25"].as_f.should be >= 0.0
     parsed["latency_ms"]["p50"].as_f.should be >= 0.0
+    parsed["latency_ms"]["p75"].as_f.should be >= 0.0
     parsed["latency_ms"]["p90"].as_f.should be >= 0.0
     parsed["latency_ms"]["p95"].as_f.should be >= 0.0
     parsed["latency_ms"]["p99"].as_f.should be >= 0.0
     parsed["latency_ms"]["p999"].as_f.should be >= 0.0
+    parsed["latency_distribution_ms"]["p10"].as_f.should be >= 0.0
+    parsed["latency_distribution_ms"]["p999"].as_f.should be >= 0.0
+    parsed["latency_histogram"].as_a.size.should be > 0
+    parsed["latency_histogram"][0]["count"].as_i.should be >= 0
     parsed["status_counts"]["successful"].as_i.should eq(20)
     parsed["status_counts"]["successful_percent"].as_f.should eq(100.0)
     parsed["status_counts"]["failed"].as_i.should eq(0)

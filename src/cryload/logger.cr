@@ -31,10 +31,13 @@ module Cryload
       stdev_ms = s.latency_stdev.round(2)
       max_ms = s.max_request_time.round(2)
       p50_ms = s.p50_request_time.round(2)
+      p25_ms = s.p25_request_time.round(2)
       p90_ms = s.p90_request_time.round(2)
       p95_ms = s.p95_request_time.round(2)
       p99_ms = s.p99_request_time.round(2)
       p999_ms = s.p999_request_time.round(2)
+      p10_ms = s.p10_request_time.round(2)
+      p75_ms = s.p75_request_time.round(2)
       rps = s.request_per_second.round(2)
       total = s.total_request_count
       elapsed = s.wall_clock_seconds.round(2)
@@ -45,6 +48,7 @@ module Cryload
       transport_error_percent = percentage(error_count, total)
       exact_status_counts = s.status_code_counts
       error_counts = s.error_counts
+      histogram_bins = s.latency_histogram_bins
       success_status_ranges = s.success_status_ranges.map do |status_range|
         status_range.begin == status_range.end ? status_range.begin.to_s : "#{status_range.begin}-#{status_range.end}"
       end
@@ -61,6 +65,7 @@ module Cryload
           "latency_ms"          => {
             "min"   => min_ms,
             "p50"   => p50_ms,
+            "p25"   => p25_ms,
             "p90"   => p90_ms,
             "avg"   => avg_ms,
             "stdev" => stdev_ms,
@@ -68,7 +73,27 @@ module Cryload
             "p95"   => p95_ms,
             "p99"   => p99_ms,
             "p999"  => p999_ms,
+            "p10"   => p10_ms,
+            "p75"   => p75_ms,
           },
+          "latency_distribution_ms" => {
+            "p10"   => p10_ms,
+            "p25"   => p25_ms,
+            "p50"   => p50_ms,
+            "p75"   => p75_ms,
+            "p90"   => p90_ms,
+            "p95"   => p95_ms,
+            "p99"   => p99_ms,
+            "p999"  => p999_ms,
+          },
+          "latency_histogram" => histogram_bins.map do |bin|
+            {
+              "start_ms" => bin[:start_ms],
+              "end_ms"   => bin[:end_ms],
+              "count"    => bin[:count],
+              "percent"  => bin[:percent],
+            }
+          end,
           "status_counts" => {
             "successful"         => s.ok_requests,
             "successful_percent" => success_percent,
@@ -104,6 +129,19 @@ module Cryload
       puts "Percentiles (ms)"
       puts "  p50: #{p50_ms}   p90: #{p90_ms}   p95: #{p95_ms}"
       puts "  p99: #{p99_ms}   p999: #{p999_ms}"
+      puts
+      puts "Response Time Histogram (ms)"
+      print_histogram histogram_bins
+      puts
+      puts "Response Time Distribution (ms)"
+      puts "  10.0% in #{p10_ms}"
+      puts "  25.0% in #{p25_ms}"
+      puts "  50.0% in #{p50_ms}"
+      puts "  75.0% in #{p75_ms}"
+      puts "  90.0% in #{p90_ms}"
+      puts "  95.0% in #{p95_ms}"
+      puts "  99.0% in #{p99_ms}"
+      puts "  99.9% in #{p999_ms}"
       puts
       puts "Status Summary"
       puts "  Successful: #{s.ok_requests} (#{success_percent}%)"
@@ -185,6 +223,18 @@ module Cryload
     private def self.percentage(count : Int64, total : Int64)
       return 0.0 if total == 0
       ((count.to_f / total) * 100.0).round(2)
+    end
+
+    private def self.print_histogram(histogram_bins)
+      max_count = histogram_bins.max_of? { |bin| bin[:count] } || 0_i64
+
+      histogram_bins.each do |bin|
+        width = max_count > 0 ? ((bin[:count].to_f / max_count) * 32).round.to_i : 0
+        width = 1 if bin[:count] > 0 && width == 0
+        bar = "■" * width
+        label = bin[:end_ms].round(2)
+        puts "  #{label} [#{bin[:count]}] |#{bar}"
+      end
     end
 
     private def self.format_success_statuses(status_ranges : Array(Range(Int32, Int32)))

@@ -58,6 +58,21 @@ describe Cryload::Stats do
     stats.p999_request_time.should eq(100.0)
   end
 
+  it "builds rolled-up histogram bins for reporting" do
+    stats = Cryload::Stats.new(100)
+
+    (1..100).each do |latency_ms|
+      stats.record_response(latency_ms.to_f, 200)
+    end
+
+    bins = stats.latency_histogram_bins(5)
+
+    bins.size.should eq(5)
+    bins.sum { |bin| bin[:count] }.should eq(100)
+    bins.first[:start_ms].should be_close(1.0, 0.01)
+    bins.last[:end_ms].should be_close(100.0, 0.01)
+  end
+
   it "tracks transport errors without losing run progress" do
     stats = Cryload::Stats.new(5)
 

@@ -221,12 +221,24 @@ module Cryload
       percentile_request_time(50.0)
     end
 
+    def p25_request_time
+      percentile_request_time(25.0)
+    end
+
     def p90_request_time
       percentile_request_time(90.0)
     end
 
+    def p75_request_time
+      percentile_request_time(75.0)
+    end
+
     def p999_request_time
       percentile_request_time(99.9)
+    end
+
+    def p10_request_time
+      percentile_request_time(10.0)
     end
 
     def response_count
@@ -243,6 +255,54 @@ module Cryload
 
     def error_counts
       @mutex.synchronize { @error_counts.dup }
+    end
+
+    def latency_histogram_bins(bin_count : Int32 = 11)
+      @mutex.synchronize do
+        return [] of NamedTuple(start_ms: Float64, end_ms: Float64, count: Int64, percent: Float64) if @total_request_count == 0
+
+        if (@max_request_time_ms - @min_request_time_ms) < HISTOGRAM_BUCKET_SIZE_MS
+          return [{
+            start_ms: @min_request_time_ms.round(2),
+            end_ms: @max_request_time_ms.round(2),
+            count: @total_request_count,
+            percent: 100.0,
+          }]
+        end
+
+        effective_bin_count = {1, bin_count}.max
+        span_ms = @max_request_time_ms - @min_request_time_ms
+        counts = Array(Int64).new(effective_bin_count, 0_i64)
+
+        @latency_histogram.each_with_index do |count, index|
+          next if count == 0
+
+          bin_index = (((index.to_f - @min_request_time_ms) / span_ms) * effective_bin_count).floor.to_i
+          bin_index = 0 if bin_index < 0
+          bin_index = effective_bin_count - 1 if bin_index >= effective_bin_count
+          counts[bin_index] += count
+        end
+
+        counts[effective_bin_count - 1] += @histogram_overflow_count
+
+        bins = [] of NamedTuple(start_ms: Float64, end_ms: Float64, count: Int64, percent: Float64)
+        effective_bin_count.times do |index|
+          start_ms = @min_request_time_ms + (span_ms * index / effective_bin_count)
+          end_ms = if index == effective_bin_count - 1
+                     @max_request_time_ms
+                   else
+                     @min_request_time_ms + (span_ms * (index + 1) / effective_bin_count)
+                   end
+          bins << {
+            start_ms: start_ms.round(2),
+            end_ms: end_ms.round(2),
+            count: counts[index],
+            percent: ((counts[index].to_f / @total_request_count) * 100.0).round(2),
+          }
+        end
+
+        bins
+      end
     end
 
     def final_exit_code
