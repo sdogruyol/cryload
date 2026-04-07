@@ -19,11 +19,11 @@ module Cryload
       server = @options[:server].as(String)
       json_output = @options[:json]?.try(&.as(Bool)) || false
       method = @options[:method].as(String)
-      body = @options[:body]?.try(&.as(String))
+      body = resolve_body
       timeout_seconds = @options[:timeout]?.try(&.as(Int32))
       rate_limit = @options[:rate]?.try(&.as(Int32))
       insecure = @options[:insecure]?.try(&.as(Bool)) || false
-      headers = parse_headers(@options[:headers].as(Array(String)))
+      headers = build_headers(@options[:headers].as(Array(String)))
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
         Cryload::LoadGenerator.new server, nil, connections, duration, json_output, method, body, headers, timeout_seconds, insecure, rate_limit
@@ -62,9 +62,17 @@ module Cryload
             @options[:body] = v
           end
 
+          opts.on("--body-file PATH", "Read HTTP request body from file") do |v|
+            @options[:body_file] = v
+          end
+
           opts.on("-H HEADER", "--header HEADER", "HTTP header, repeatable (e.g. -H 'Authorization: Bearer token')") do |v|
             headers = @options[:headers].as(Array(String))
             headers << v
+          end
+
+          opts.on("-a USERPASS", "--basic-auth USERPASS", "HTTP Basic auth in the form 'user:password'") do |v|
+            @options[:basic_auth] = v
           end
 
           opts.on("--timeout SECONDS", "Client connect/read timeout in seconds") do |v|
@@ -139,6 +147,32 @@ module Cryload
         return false
       end
 
+      if @options.has_key?(:body) && @options.has_key?(:body_file)
+        STDERR.puts "Please specify only one body source: either '--body' or '--body-file'.".colorize(:red)
+        return false
+      end
+
+      if @options.has_key?(:body_file)
+        body_file = @options[:body_file].as(String)
+        unless File.file?(body_file)
+          STDERR.puts "Body file not found: #{body_file}".colorize(:red)
+          return false
+        end
+      end
+
+      if @options.has_key?(:basic_auth)
+        auth = @options[:basic_auth].as(String)
+        unless valid_basic_auth?(auth)
+          STDERR.puts "Invalid basic auth format. Use 'user:password'.".colorize(:red)
+          return false
+        end
+
+        if headers.any? { |header| header.split(":", 2)[0]?.try(&.strip.downcase) == "authorization" }
+          STDERR.puts "Please specify only one authorization source: either '--basic-auth' or '-H Authorization: ...'.".colorize(:red)
+          return false
+        end
+      end
+
       if @options.has_key?(:timeout)
         timeout = @options[:timeout].as(Int32)
         if timeout <= 0
@@ -191,6 +225,24 @@ module Cryload
       @options[:json]?.try(&.as(Bool)) || false
     end
 
+    private def resolve_body
+      body = @options[:body]?.try(&.as(String))
+      return body if body
+
+      body_file = @options[:body_file]?.try(&.as(String))
+      return nil unless body_file
+
+      File.read(body_file)
+    end
+
+    private def build_headers(raw_headers : Array(String))
+      headers = parse_headers(raw_headers)
+      if auth = @options[:basic_auth]?.try(&.as(String))
+        headers["Authorization"] = "Basic #{Base64.strict_encode(auth)}"
+      end
+      headers
+    end
+
     private def parse_headers(raw_headers : Array(String))
       headers = HTTP::Headers.new
       raw_headers.each do |header|
@@ -209,6 +261,12 @@ module Cryload
       key = parts[0].strip
       value = parts[1].strip
       !key.empty? && !value.empty?
+    end
+
+    private def valid_basic_auth?(auth : String)
+      parts = auth.split(":", 2)
+      return false if parts.size != 2
+      !parts[0].empty?
     end
 
     private def valid_url?(url : String)

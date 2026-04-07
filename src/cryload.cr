@@ -3,6 +3,7 @@ require "http"
 require "colorize"
 require "option_parser"
 require "json"
+require "base64"
 
 module Cryload
   class RateLimiter
