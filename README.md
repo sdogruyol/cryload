@@ -185,6 +185,11 @@ Summary
   Fastest: 0.19 ms
   Slowest: 35.39 ms
 
+Status
+  Successful: 1696170 (100.0%)
+  Failed: 0 (0.0%)
+  Success statuses: 200-299
+
 Transfer
   Total data: 374.14 MiB
   Size/request: 231.0 B
@@ -193,16 +198,16 @@ Transfer
 Latency (ms)
   avg: 0.53   min: 0.19   stdev: 0.76   max: 35.39
 
-Percentiles (ms)
+Latency Percentiles (ms)
   p50: 0.41   p90: 0.81   p95: 0.96
   p99: 1.34   p999: 3.72
 
-Response Time Histogram (ms)
+Latency Histogram (ms)
   3.390 ms [120] |■■
   6.590 ms [420] |■■■■■■■
   9.790 ms [1690630] |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
 
-Response Time Distribution (ms)
+Latency Distribution (ms)
   10.0% in 0.32
   25.0% in 0.38
   50.0% in 0.41
@@ -211,11 +216,6 @@ Response Time Distribution (ms)
   95.0% in 0.96
   99.0% in 1.34
   99.9% in 3.72
-
-Status Summary
-  Successful: 1696170 (100.0%)
-  Failed: 0 (0.0%)
-  Success statuses: 200-299
 
 Status Code Distribution
   [200] 1696170 responses (100.0%)
