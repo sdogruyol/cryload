@@ -24,7 +24,6 @@ module Cryload
     # Logs the final stats
     def self.log_final
       s = Cryload.stats
-      return if s.empty?
 
       avg_ms = s.average_request_time.round(2)
       min_ms = s.min_request_time.round(2)
@@ -43,6 +42,9 @@ module Cryload
       elapsed = s.wall_clock_seconds.round(2)
       error_count = s.transport_error_count
       response_count = s.response_count
+      total_response_bytes = s.total_response_bytes
+      average_bytes_per_response = s.average_bytes_per_response
+      bytes_per_second = s.bytes_per_second
       success_percent = percentage(s.ok_requests, response_count)
       failure_percent = percentage(s.not_ok_requests, response_count)
       transport_error_percent = percentage(error_count, total)
@@ -62,7 +64,12 @@ module Cryload
           "transport_errors"    => error_count,
           "elapsed_seconds"     => elapsed,
           "requests_per_second" => rps,
-          "latency_ms"          => {
+          "transfer"            => {
+            "total_bytes"            => total_response_bytes,
+            "size_per_request_bytes" => average_bytes_per_response.round(2),
+            "bytes_per_second"       => bytes_per_second.round(2),
+          },
+          "latency_ms" => {
             "min"   => min_ms,
             "p50"   => p50_ms,
             "p25"   => p25_ms,
@@ -77,14 +84,14 @@ module Cryload
             "p75"   => p75_ms,
           },
           "latency_distribution_ms" => {
-            "p10"   => p10_ms,
-            "p25"   => p25_ms,
-            "p50"   => p50_ms,
-            "p75"   => p75_ms,
-            "p90"   => p90_ms,
-            "p95"   => p95_ms,
-            "p99"   => p99_ms,
-            "p999"  => p999_ms,
+            "p10"  => p10_ms,
+            "p25"  => p25_ms,
+            "p50"  => p50_ms,
+            "p75"  => p75_ms,
+            "p90"  => p90_ms,
+            "p95"  => p95_ms,
+            "p99"  => p99_ms,
+            "p999" => p999_ms,
           },
           "latency_histogram" => histogram_bins.map do |bin|
             {
@@ -100,9 +107,9 @@ module Cryload
             "failed"             => s.not_ok_requests,
             "failed_percent"     => failure_percent,
           },
-          "success_statuses"      => success_status_ranges,
-          "response_status_codes" => exact_status_counts.transform_keys(&.to_s),
-          "error_counts"          => error_counts,
+          "success_statuses"        => success_status_ranges,
+          "response_status_codes"   => exact_status_counts.transform_keys(&.to_s),
+          "error_counts"            => error_counts,
           "transport_error_percent" => transport_error_percent,
         }
         puts payload.to_json
@@ -110,7 +117,7 @@ module Cryload
       end
 
       if s.csv_output
-        print_csv total, response_count, error_count, elapsed, rps, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, s.ok_requests, s.not_ok_requests, success_percent, failure_percent, transport_error_percent, success_status_ranges, exact_status_counts, error_counts
+        print_csv total, response_count, error_count, elapsed, rps, total_response_bytes, average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, s.ok_requests, s.not_ok_requests, success_percent, failure_percent, transport_error_percent, success_status_ranges, exact_status_counts, error_counts
         return
       end
 
@@ -122,6 +129,11 @@ module Cryload
       puts "  Requests/sec: #{rps}"
       puts "  Responses: #{response_count}"
       puts "  Transport errors: #{error_count} (#{transport_error_percent}%)"
+      puts
+      puts "Transfer"
+      puts "  Total data: #{format_bytes(total_response_bytes)}"
+      puts "  Size/request: #{format_bytes(average_bytes_per_response)}"
+      puts "  Transfer/sec: #{format_bytes(bytes_per_second)}/s"
       puts
       puts "Latency (ms)"
       puts "  avg: #{avg_ms}   min: #{min_ms}   stdev: #{stdev_ms}   max: #{max_ms}"
@@ -157,7 +169,7 @@ module Cryload
       end
     end
 
-    private def self.print_csv(total, response_count, error_count, elapsed, rps, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, successful_count, failed_count, successful_percent, failed_percent, transport_error_percent, success_status_ranges, exact_status_counts, error_counts)
+    private def self.print_csv(total, response_count, error_count, elapsed, rps, total_response_bytes, average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, successful_count, failed_count, successful_percent, failed_percent, transport_error_percent, success_status_ranges, exact_status_counts, error_counts)
       headers = [
         "url",
         "duration_mode",
@@ -166,6 +178,9 @@ module Cryload
         "transport_errors",
         "elapsed_seconds",
         "requests_per_second",
+        "total_response_bytes",
+        "size_per_request_bytes",
+        "bytes_per_second",
         "latency_avg_ms",
         "latency_min_ms",
         "latency_stdev_ms",
@@ -195,6 +210,9 @@ module Cryload
         error_count.to_s,
         elapsed.to_s,
         rps.to_s,
+        total_response_bytes.to_s,
+        average_bytes_per_response.round(2).to_s,
+        bytes_per_second.round(2).to_s,
         avg_ms.to_s,
         min_ms.to_s,
         stdev_ms.to_s,
@@ -223,6 +241,20 @@ module Cryload
     private def self.percentage(count : Int64, total : Int64)
       return 0.0 if total == 0
       ((count.to_f / total) * 100.0).round(2)
+    end
+
+    private def self.format_bytes(bytes : Int | Int64 | Float64)
+      value = bytes.to_f
+      return "0 B" if value <= 0
+
+      units = {"B", "KiB", "MiB", "GiB"}
+      unit_index = 0
+      while value >= 1024.0 && unit_index < units.size - 1
+        value /= 1024.0
+        unit_index += 1
+      end
+
+      "#{value.round(2)} #{units[unit_index]}"
     end
 
     private def self.print_histogram(histogram_bins)

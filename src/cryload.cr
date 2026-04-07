@@ -79,7 +79,7 @@ module Cryload
       @duration_seconds = duration_seconds
       @duration_mode = !@duration_seconds.nil?
 
-      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @output_format, @success_status_ranges, @duration_seconds.try(&.to_f)
+      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @output_format, @success_status_ranges
       worker_count = @duration_mode ? {1, @connections}.max : {1, {@connections, @request_number}.min}.max
       Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count, @rate_limit
       request_channel, done_channel, worker_count = generate_request_channel
@@ -114,7 +114,9 @@ module Cryload
 
         while acquire_rate_slot(rate_limiter, deadline)
           create_request(client, uri, local_batch)
-          local_batch = flush_batch_if_needed stats_channel, local_batch
+          # Flush every completed request in duration mode so the receiver can
+          # stop cleanly at the deadline without losing already-finished work.
+          local_batch = flush_batch stats_channel, local_batch
         end
 
         flush_batch stats_channel, local_batch
@@ -199,9 +201,13 @@ module Cryload
     end
 
     def spawn_receive_loop_duration(stats_channel, done_channel, worker_count)
+      deadline = Cryload.stats.benchmark_start + @duration_seconds.not_nil!.seconds
       done_count = 0
 
       loop do
+        remaining = deadline - Time.instant
+        break unless remaining.positive?
+
         select
         when batch = stats_channel.receive
           Cryload.stats.merge_batch batch
@@ -209,6 +215,8 @@ module Cryload
         when done_channel.receive
           done_count += 1
           break if done_count >= worker_count
+        when timeout(remaining)
+          break
         end
       end
 
@@ -244,7 +252,7 @@ module Cryload
     private def create_request(client, uri, local_batch : Stats::Batch)
       started_at = Time.instant
       request = Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects
-      local_batch.record_response request.time_taken, request.status_code
+      local_batch.record_response request.time_taken, request.status_code, request.response_bytes
     rescue ex : Socket::Error | IO::Error | OpenSSL::SSL::Error
       elapsed_ms = (Time.instant - started_at.not_nil!).total_seconds * 1000.0
       local_batch.record_error elapsed_ms, ex.class.name.to_s

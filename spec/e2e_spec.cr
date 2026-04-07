@@ -37,6 +37,7 @@ describe "Cryload E2E" do
     output.to_s.should contain("Preparing to make it CRY for 10 requests")
     output.to_s.should contain("Mode: request-count")
     output.to_s.should contain("Connections: 10")
+    output.to_s.should contain("Total data:")
     output.to_s.should contain("Successful:")
     output.to_s.should contain("min:")
     output.to_s.should contain("Summary")
@@ -637,9 +638,10 @@ describe "Cryload E2E" do
   end
 
   it "outputs json with --json including p95 and p99" do
+    response_body = "OK"
     server = HTTP::Server.new do |context|
       context.response.status_code = 200
-      context.response.print "OK"
+      context.response.print response_body
     end
 
     address = server.bind_unused_port
@@ -663,6 +665,9 @@ describe "Cryload E2E" do
     parsed["requests"].as_i.should eq(20)
     parsed["responses"].as_i.should eq(20)
     parsed["transport_errors"].as_i.should eq(0)
+    parsed["transfer"]["total_bytes"].as_i.should eq(response_body.bytesize * 20)
+    parsed["transfer"]["size_per_request_bytes"].as_f.should eq(response_body.bytesize.to_f)
+    parsed["transfer"]["bytes_per_second"].as_f.should be > 0.0
     parsed["latency_ms"]["min"].as_f.should be >= 0.0
     parsed["latency_ms"]["p10"].as_f.should be >= 0.0
     parsed["latency_ms"]["p25"].as_f.should be >= 0.0
@@ -686,9 +691,10 @@ describe "Cryload E2E" do
   end
 
   it "outputs csv with --output-format csv" do
+    response_body = "hello"
     server = HTTP::Server.new do |context|
       context.response.status_code = 200
-      context.response.print "OK"
+      context.response.print response_body
     end
 
     address = server.bind_unused_port
@@ -710,8 +716,8 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
     lines = output.to_s.lines.map(&.strip).reject(&.empty?)
     lines.size.should eq(2)
-    lines[0].should contain("url,duration_mode,requests,responses,transport_errors,elapsed_seconds,requests_per_second,latency_avg_ms,latency_min_ms")
-    lines[1].should contain("false,5,5,0")
+    lines[0].should contain("url,duration_mode,requests,responses,transport_errors,elapsed_seconds,requests_per_second,total_response_bytes,size_per_request_bytes,bytes_per_second")
+    lines[1].should contain(",25,5.0,")
   end
 
   it "suppresses final output with --output-format quiet" do
@@ -795,12 +801,12 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     parsed = JSON.parse(output.to_s)
-    parsed["elapsed_seconds"].as_f.should be < 2.3
-    parsed["requests"].as_i.should be >= 38
-    parsed["requests_per_second"].as_f.should be >= 18.0
+    parsed["elapsed_seconds"].as_f.should be < 2.2
+    parsed["requests"].as_i.should be >= 35
+    parsed["requests_per_second"].as_f.should be >= 17.0
   end
 
-  it "caps reported elapsed time to configured duration even when responses finish later" do
+  it "stops duration mode at the configured deadline without waiting for late responses" do
     server = HTTP::Server.new do |context|
       sleep 1500.milliseconds
       context.response.status_code = 200
@@ -825,8 +831,9 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     parsed = JSON.parse(output.to_s)
-    parsed["elapsed_seconds"].as_f.should eq(1.0)
-    parsed["requests_per_second"].as_f.should be >= 5.0
+    parsed["elapsed_seconds"].as_f.should be < 1.2
+    parsed["requests"].as_i.should eq(0)
+    parsed["responses"].as_i.should eq(0)
   end
 
   it "outputs transport errors in json when target is unreachable" do

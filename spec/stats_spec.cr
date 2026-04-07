@@ -18,9 +18,9 @@ describe Cryload::Stats do
   it "updates aggregate counters and latency stats" do
     stats = Cryload::Stats.new(10)
 
-    stats.record_response(10.0, 200)
-    stats.record_response(20.0, 404)
-    stats.record_response(30.0, 201)
+    stats.record_response(10.0, 200, 100)
+    stats.record_response(20.0, 404, 50)
+    stats.record_response(30.0, 201, 150)
 
     stats.empty?.should be_false
     stats.total_request_count.should eq(3)
@@ -29,6 +29,8 @@ describe Cryload::Stats do
     stats.ok_requests.should eq(2)
     stats.not_ok_requests.should eq(1)
     stats.average_request_time.should be_close(20.0, 0.001)
+    stats.total_response_bytes.should eq(300)
+    stats.average_bytes_per_response.should be_close(100.0, 0.001)
     stats.max_request_time.should be_close(30.0, 0.001)
     stats.latency_stdev.should be_close(8.1649, 0.001)
     stats.status_code_counts.should eq({200 => 1_i64, 201 => 1_i64, 404 => 1_i64})
@@ -37,8 +39,8 @@ describe Cryload::Stats do
   it "supports custom success status ranges" do
     stats = Cryload::Stats.new(10, success_status_ranges: [200..204, 301..304])
 
-    stats.record_response(10.0, 302)
-    stats.record_response(20.0, 404)
+    stats.record_response(10.0, 302, 10)
+    stats.record_response(20.0, 404, 20)
 
     stats.ok_requests.should eq(1)
     stats.not_ok_requests.should eq(1)
@@ -91,13 +93,14 @@ describe Cryload::Stats do
     batch = Cryload::Stats::Batch.new
 
     batch.record_response(10.0, 200)
-    batch.record_response(30.0, 503)
+    batch.record_response(30.0, 503, 120)
     batch.record_error(20.0, "Socket::ConnectError")
 
     stats.merge_batch(batch)
 
     stats.total_request_count.should eq(3)
     stats.response_count.should eq(2)
+    stats.total_response_bytes.should eq(120)
     stats.transport_error_count.should eq(1)
     stats.ok_requests.should eq(1)
     stats.not_ok_requests.should eq(1)
@@ -116,12 +119,12 @@ describe Cryload::Stats do
     stats.final_exit_code.should eq(1)
   end
 
-  it "caps reported elapsed time to configured duration window" do
-    stats = Cryload::Stats.new(10, duration_mode: true, benchmark_start: Time.instant - 2.seconds, planned_duration_seconds: 1.0)
+  it "uses actual elapsed time for throughput calculations" do
+    stats = Cryload::Stats.new(10, duration_mode: true, benchmark_start: Time.instant - 2.seconds)
 
     stats.record_response(100.0, 200)
 
-    stats.wall_clock_seconds.should be_close(1.0, 0.001)
-    stats.request_per_second.should be_close(1.0, 0.001)
+    stats.wall_clock_seconds.should be_close(2.0, 0.001)
+    stats.request_per_second.should be_close(0.5, 0.001)
   end
 end

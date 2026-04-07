@@ -6,12 +6,15 @@ module Cryload
     @start_time : Time::Instant
     @end_time : Time::Instant
     @status_code : Int32
+    @response_bytes : Int64
 
     getter :status_code
+    getter :response_bytes
 
     def initialize(http_client, uri, method : String, headers : HTTP::Headers, body : String?, timeout_seconds : Int32? = nil, insecure : Bool = false, follow_redirects : Bool = false)
       @start_time = Time.instant
       response = exec_request http_client, uri, method, headers, body, timeout_seconds, insecure, follow_redirects
+      @response_bytes = response.body.to_s.bytesize.to_i64
       @end_time = Time.instant
       @status_code = response.status_code
     end
