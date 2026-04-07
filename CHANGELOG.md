@@ -46,6 +46,7 @@ cryload http://localhost:3000/redirect -n 100 --success-status 200-299,302
 - **Reporting Polish** — Text/JSON/CSV reports now include minimum latency plus success/failure and transport error percentages
 - **Reporting Polish** — Human-readable text output is now grouped into clearer header/summary/latency/status sections
 - **Latency Visualization** — Added rolled-up response time histogram and distribution reporting in text/JSON output
+- **Transfer Metrics** — Added total response data, size per request, and transfer per second reporting in text/JSON/CSV output
 
 
 # 2.3.0 (06-04-2026)
