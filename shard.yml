@@ -5,7 +5,7 @@ description: "Cross-platform HTTP load testing CLI: a modern ab/wrk alternative 
 version: 3.2.0
 
 authors:
-  - Serdar Doğruyol <dogruyolserdar@gmail.com>
+  - Serdar Dogruyol <dogruyolserdar@gmail.com>
 
 targets:
   cryload:
