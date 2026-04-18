@@ -6,9 +6,28 @@
 
 [![CI](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml/badge.svg)](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml)
 
-cryload is a powerful, fast, and practical HTTP benchmarking tool for stress testing APIs and web services.
+**cryload** is a fast, single-binary **HTTP load testing** and **benchmarking CLI**: drive **concurrent** traffic against REST **APIs**, **microservices**, and static sites, measure **requests per second**, **latency percentiles** (p50–p999), status breakdowns, and transfer volume. Use it for **stress tests**, **smoke tests** before deploy, capacity checks, and **GitHub Actions** / pipeline automation via **JSON** or **CSV** output.
 
-Built with [Crystal](https://crystal-lang.org/) for high performance and low overhead.
+If you are looking for a **hey**-like or **oha**-like tool with extra reporting modes, or a **wrk** alternative for **HTTP** scenarios without Lua scripting, cryload is built for that workflow. Implemented in **[Crystal](https://crystal-lang.org/)** for a small footprint and predictable performance.
+
+Typical uses: bench **Node**, **Go**, **Python**, **Rails**, or **.NET** HTTP services; soak an **API gateway** or **Kubernetes** ingress; compare **p99 latency** after tuning; ship the same **macOS**, **Linux**, and **Windows** CLI to your team.
+
+## How cryload compares to wrk, hey, and oha
+
+Rough feature snapshot (tools evolve; check each project’s docs for the latest).
+
+| | cryload | [hey](https://github.com/rakyll/hey) | [oha](https://github.com/hatoo/oha) | [wrk](https://github.com/wg/wrk) |
+|--|:--:|:--:|:--:|:--:|
+| Language | Crystal | Go | Rust | C |
+| **Concurrent** connections (`-c`) | ✓ | ✓ | ✓ | ✓ |
+| **Duration** (`-d`) / **request count** (`-n`) | ✓ | ✓ | ✓ | ✓ |
+| **JSON** / **CSV** / quiet output for **CI/CD** | ✓ | JSON | JSON | — (text / Lua) |
+| Text latency **histogram** + distribution | ✓ | limited | TUI-focused | basic |
+| Global **RPS cap** (`--rate`) | ✓ | — | ✓ | different model |
+| **Follow redirects**, custom **success** HTTP codes | ✓ | partial | partial | — |
+| **Scriptable** load (Lua, etc.) | — | — | — | ✓ |
+
+Choose **wrk** when you need Lua-driven scenarios and maximum tuning on Linux. Choose **hey** or **oha** when their defaults match your stack. Choose **cryload** when you want **CSV** / **JSON** reporting, **rate** limits, redirect handling, and **histogram**-style summaries in one **cross-platform** binary.
 
 ## Why cryload?
 
@@ -35,7 +54,7 @@ curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/in
 Install a specific version:
 
 ```bash
-VERSION=v3.0.0 curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh -s
+VERSION=v3.1.0 curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh -s
 ```
 
 **Windows** (PowerShell):
@@ -246,6 +265,10 @@ Status Code Distribution
 ## Built With Crystal
 
 cryload is written in [Crystal](https://crystal-lang.org/), combining Ruby-like developer ergonomics with compiled-language speed.
+
+## Automation and CI
+
+Use **`--json`** or **`--output-format csv`** for scripts, dashboards, and **GitHub Actions** jobs: parse a single structured summary instead of scraping text. **`--output-format quiet`** is useful when you only care about exit status after a small **health-check** load. Combine with **`-n`** for fixed request counts so pipelines stay deterministic.
 
 ## Contributing
 
