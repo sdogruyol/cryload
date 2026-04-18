@@ -1,3 +1,9 @@
+# 3.2.0 (18-04-2026)
+
+- **Documentation** — README tagline and positioning now describe cryload as a cross-platform HTTP load testing CLI and a modern **ab** / **wrk** alternative with machine-readable **CI/CD** reports
+- **CLI** — `--help` (and empty-invocation help) banner prefixed with the same one-line project description
+- **Packaging** — `shard.yml` now includes a quoted `description` field for shard registries and discovery (YAML-safe when the text contains colons)
+
 # 3.1.0 (07-04-2026)
 
 - **Distribution** — Added `scripts/install.sh` for Linux, macOS, and Git Bash on Windows: downloads the release binary, verifies SHA256, and installs to `~/.local/bin` (configurable via `INSTALL_DIR`, `VERSION`, `REPO`)
