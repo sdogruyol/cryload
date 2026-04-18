@@ -2,7 +2,7 @@ name: cryload
 
 description: "Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD"
 
-version: 3.1.0
+version: 3.2.0
 
 authors:
   - Serdar Doğruyol <dogruyolserdar@gmail.com>
