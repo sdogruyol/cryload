@@ -1,4 +1,5 @@
 #!/usr/bin/env sh
+# Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD
 # Install cryload from GitHub Releases (Linux, macOS, or Git Bash on Windows).
 #
 # Usage:
@@ -21,6 +22,7 @@ VERSION="${VERSION:-}"
 usage() {
   cat <<EOF
 cryload install script
+Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD
 
 Environment variables:
   REPO         GitHub repository (default: sdogruyol/cryload)

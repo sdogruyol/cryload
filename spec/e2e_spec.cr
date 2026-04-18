@@ -134,6 +134,7 @@ describe "Cryload E2E" do
       chdir: File.dirname(__DIR__)
     )
 
+    output.to_s.should contain("ab/wrk alternative")
     output.to_s.should contain("Usage:")
     output.to_s.should contain("<url>")
     output.to_s.should contain("--numbers")

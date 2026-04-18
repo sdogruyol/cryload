@@ -2,7 +2,9 @@
   <img src="assets/logo.png" alt="cryload logo" width="180">
 </p>
 
-# cryload - Powerful HTTP Benchmarking Tool
+# cryload
+
+Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD
 
 [![CI](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml/badge.svg)](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml)
 

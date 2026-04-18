@@ -42,7 +42,7 @@ module Cryload
       @options[:headers] = [] of String
       begin
         OptionParser.parse(ARGV) do |opts|
-          opts.banner = "Usage: cryload <url> [options]"
+          opts.banner = "Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD\n\nUsage: cryload <url> [options]"
 
           opts.on("-n NUMBERS", "--numbers NUMBERS", "Number of requests to make") do |v|
             @options[:numbers] = v.to_i
