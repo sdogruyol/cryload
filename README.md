@@ -10,26 +10,26 @@ Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-r
 
 **cryload** is a fast, single-binary **HTTP load testing** and **benchmarking CLI**: drive **concurrent** traffic against REST **APIs**, **microservices**, and static sites, measure **requests per second**, **latency percentiles** (p50–p999), status breakdowns, and transfer volume. Use it for **stress tests**, **smoke tests** before deploy, capacity checks, and **GitHub Actions** / pipeline automation via **JSON** or **CSV** output.
 
-If you are looking for a **hey**-like or **oha**-like tool with extra reporting modes, or a **wrk** alternative for **HTTP** scenarios without Lua scripting, cryload is built for that workflow. Implemented in **[Crystal](https://crystal-lang.org/)** for a small footprint and predictable performance.
+If you are looking for a **hey**-like or **oha**-like tool with extra reporting modes, or an **ab** / **wrk** alternative for **HTTP** scenarios without Lua scripting, cryload is built for that workflow. Implemented in **[Crystal](https://crystal-lang.org/)** for a small footprint and predictable performance.
 
 Typical uses: bench **Node**, **Go**, **Python**, **Rails**, or **.NET** HTTP services; soak an **API gateway** or **Kubernetes** ingress; compare **p99 latency** after tuning; ship the same **macOS**, **Linux**, and **Windows** CLI to your team.
 
-## How cryload compares to wrk, hey, and oha
+## How cryload compares to ab, wrk, hey, and oha
 
 Rough feature snapshot (tools evolve; check each project’s docs for the latest).
 
-| | cryload | [hey](https://github.com/rakyll/hey) | [oha](https://github.com/hatoo/oha) | [wrk](https://github.com/wg/wrk) |
-|--|:--:|:--:|:--:|:--:|
-| Language | Crystal | Go | Rust | C |
-| **Concurrent** connections (`-c`) | ✓ | ✓ | ✓ | ✓ |
-| **Duration** (`-d`) / **request count** (`-n`) | ✓ | ✓ | ✓ | ✓ |
-| **JSON** / **CSV** / quiet output for **CI/CD** | ✓ | JSON | JSON | — (text / Lua) |
-| Text latency **histogram** + distribution | ✓ | limited | TUI-focused | basic |
-| Global **RPS cap** (`--rate`) | ✓ | — | ✓ | different model |
-| **Follow redirects**, custom **success** HTTP codes | ✓ | partial | partial | — |
-| **Scriptable** load (Lua, etc.) | — | — | — | ✓ |
+| | cryload | [ab](https://httpd.apache.org/docs/current/programs/ab.html) | [hey](https://github.com/rakyll/hey) | [oha](https://github.com/hatoo/oha) | [wrk](https://github.com/wg/wrk) |
+|--|:--:|:--:|:--:|:--:|:--:|
+| Language | Crystal | C | Go | Rust | C |
+| **Concurrent** connections (`-c`) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Duration** / **request count** (`-n`) | ✓ | ✓ (`-t` / `-n`) | ✓ | ✓ | ✓ |
+| **JSON** / **CSV** / quiet output for **CI/CD** | ✓ | — (text) | JSON | JSON | — (text / Lua) |
+| Text latency **histogram** + distribution | ✓ | basic | limited | TUI-focused | basic |
+| Global **RPS cap** (`--rate`) | ✓ | — | — | ✓ | different model |
+| **Follow redirects**, custom **success** HTTP codes | ✓ | — | partial | partial | — |
+| **Scriptable** load (Lua, etc.) | — | — | — | — | ✓ |
 
-Choose **wrk** when you need Lua-driven scenarios and maximum tuning on Linux. Choose **hey** or **oha** when their defaults match your stack. Choose **cryload** when you want **CSV** / **JSON** reporting, **rate** limits, redirect handling, and **histogram**-style summaries in one **cross-platform** binary.
+Choose **wrk** when you need Lua-driven scenarios and maximum tuning on Linux. Choose **ab** when the classic Apache **Bench** one-liner is enough—plain-text summaries, **GET**-heavy checks, and **httpd**-family packages already on the machine. Choose **hey** or **oha** when their defaults match your stack. Choose **cryload** when you want **CSV** / **JSON** reporting, **rate** limits, redirect handling, and **histogram**-style summaries in one **cross-platform** binary.
 
 ## Why cryload?
 
