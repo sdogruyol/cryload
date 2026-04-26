@@ -67,11 +67,21 @@ iwr -useb https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/ins
 
 ### Option 2: Prebuilt binary
 
-Download the latest prebuilt binary from the [Releases page](https://github.com/sdogruyol/cryload/releases), then make it executable:
+Download the matching asset from the [Releases page](https://github.com/sdogruyol/cryload/releases) (`cryload-linux`, `cryload-macos`, or `cryload-windows.exe`).
+
+**Linux:**
 
 ```bash
-chmod +x cryload
-./cryload --help
+chmod +x cryload-linux
+./cryload-linux --help
+```
+
+**macOS:** Same as Linux, using the `cryload-macos` binary.
+
+**Windows** (PowerShell or Command Prompt, from the directory containing the file):
+
+```powershell
+.\cryload-windows.exe --help
 ```
 
 ### Option 3: Build from source
