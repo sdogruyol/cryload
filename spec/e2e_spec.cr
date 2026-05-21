@@ -1,4 +1,4 @@
-require "spec"
+require "./spec_helper"
 require "http/server"
 require "json"
 
@@ -22,13 +22,7 @@ describe "Cryload E2E" do
 
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "10"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "10"], output: output, error: error)
 
     server.close
     Fiber.yield
@@ -60,12 +54,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "10"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    run_cryload(["http://127.0.0.1:#{port}", "-n", "10"], output: output)
 
     server.close
 
@@ -85,12 +74,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "5"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    run_cryload(["http://127.0.0.1:#{port}", "-n", "5"], output: output)
 
     server.close
 
@@ -112,12 +96,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "20", "-c", "5"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    run_cryload(["http://127.0.0.1:#{port}", "-n", "20", "-c", "5"], output: output)
 
     server.close
 
@@ -127,12 +106,7 @@ describe "Cryload E2E" do
 
   it "prints help when -h is passed" do
     output = IO::Memory.new
-    Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "-h"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    run_cryload(["-h"], output: output)
 
     output.to_s.should contain("ab/wrk alternative")
     output.to_s.should contain("Usage:")
@@ -158,13 +132,7 @@ describe "Cryload E2E" do
   it "exits with error when url is missing" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "-n", "10"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["-n", "10"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("cryload <url>")
@@ -174,13 +142,7 @@ describe "Cryload E2E" do
   it "exits with error when neither -n nor -d is specified" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("-n")
@@ -191,13 +153,7 @@ describe "Cryload E2E" do
   it "exits with error when url is invalid" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "localhost:8080", "-n", "10"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["localhost:8080", "-n", "10"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Invalid URL")
@@ -207,13 +163,7 @@ describe "Cryload E2E" do
   it "shows connection refused error when server is unreachable" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:19999", "-n", "5"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:19999", "-n", "5"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Connection failed")
@@ -237,12 +187,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-d", "1", "-c", "3"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    run_cryload(["http://127.0.0.1:#{port}", "-d", "1", "-c", "3"], output: output)
 
     server.close
 
@@ -271,12 +216,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "5", "-m", "POST", "-H", "X-Cryload-Test: ok", "-b", "hello"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "5", "-m", "POST", "-H", "X-Cryload-Test: ok", "-b", "hello"], output: output)
 
     server.close
 
@@ -311,12 +251,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "3", "-m", "POST", "--body-file", fixture_body_file, "--basic-auth", "user:secret", "-H", "Content-Type: application/json"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "3", "-m", "POST", "--body-file", fixture_body_file, "--basic-auth", "user:secret", "-H", "Content-Type: application/json"], output: output)
 
     server.close
 
@@ -343,12 +278,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "3", "--user-agent", "cryload-test/1.0", "--host-header", "bench.local"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "3", "--user-agent", "cryload-test/1.0", "--host-header", "bench.local"], output: output)
 
     server.close
 
@@ -374,12 +304,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}/redirect", "-n", "3"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}/redirect", "-n", "3"], output: output)
 
     server.close
 
@@ -408,12 +333,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}/redirect", "-n", "3", "--follow-redirects"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}/redirect", "-n", "3", "--follow-redirects"], output: output)
 
     server.close
 
@@ -437,12 +357,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}/redirect", "-n", "3", "--success-status", "200-299,302"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}/redirect", "-n", "3", "--success-status", "200-299,302"], output: output)
 
     server.close
 
@@ -455,13 +370,7 @@ describe "Cryload E2E" do
   it "exits with error on invalid success status format" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--success-status", "abc"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--success-status", "abc"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Invalid success status")
@@ -471,13 +380,7 @@ describe "Cryload E2E" do
   it "exits with error on invalid header format" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "-H", "InvalidHeader"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "-H", "InvalidHeader"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Invalid header format")
@@ -487,13 +390,7 @@ describe "Cryload E2E" do
   it "exits with error when body and body-file are both specified" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--body", "inline", "--body-file", fixture_body_file],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--body", "inline", "--body-file", fixture_body_file], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Please specify only one body source")
@@ -503,13 +400,7 @@ describe "Cryload E2E" do
   it "exits with error on invalid basic auth format" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--basic-auth", "invalid"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--basic-auth", "invalid"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Invalid basic auth format")
@@ -519,13 +410,7 @@ describe "Cryload E2E" do
   it "exits with error when basic auth and authorization header are both specified" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--basic-auth", "user:secret", "-H", "Authorization: Bearer token"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--basic-auth", "user:secret", "-H", "Authorization: Bearer token"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Please specify only one authorization source")
@@ -535,13 +420,7 @@ describe "Cryload E2E" do
   it "exits with error when user-agent flag and User-Agent header are both specified" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--user-agent", "cryload-test/1.0", "-H", "User-Agent: other"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--user-agent", "cryload-test/1.0", "-H", "User-Agent: other"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Please specify only one User-Agent source")
@@ -551,13 +430,7 @@ describe "Cryload E2E" do
   it "exits with error when host-header flag and Host header are both specified" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--host-header", "bench.local", "-H", "Host: other.local"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--host-header", "bench.local", "-H", "Host: other.local"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Please specify only one Host header source")
@@ -567,13 +440,7 @@ describe "Cryload E2E" do
   it "exits with error on invalid http method" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "-m", "FOO"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "-m", "FOO"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Invalid HTTP method")
@@ -583,13 +450,7 @@ describe "Cryload E2E" do
   it "exits with error on non-positive timeout" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--timeout", "0"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--timeout", "0"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Timeout must be greater than 0 seconds")
@@ -599,13 +460,7 @@ describe "Cryload E2E" do
   it "exits with error on non-positive rate" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--rate", "0"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--rate", "0"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Rate must be greater than 0 requests/sec")
@@ -615,13 +470,7 @@ describe "Cryload E2E" do
   it "exits with error on invalid output format" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--output-format", "xml"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--output-format", "xml"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Invalid output format")
@@ -631,13 +480,7 @@ describe "Cryload E2E" do
   it "exits with error when --json conflicts with another output format" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://localhost:8080", "-n", "5", "--json", "--output-format", "csv"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--json", "--output-format", "csv"], output: output, error: error)
 
     combined = output.to_s + error.to_s
     combined.should contain("Please specify only one JSON output source")
@@ -658,12 +501,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "20", "--json"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "20", "--json"], output: output)
 
     server.close
 
@@ -722,12 +560,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "5", "--output-format", "csv"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "5", "--output-format", "csv"], output: output)
 
     server.close
 
@@ -751,12 +584,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "5", "--output-format", "quiet"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "5", "--output-format", "quiet"], output: output)
 
     server.close
 
@@ -777,12 +605,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-n", "6", "-c", "6", "--rate", "3", "--json"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "6", "-c", "6", "--rate", "3", "--json"], output: output)
 
     server.close
 
@@ -808,12 +631,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-d", "2", "-c", "20", "--rate", "20", "--json"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}", "-d", "2", "-c", "20", "--rate", "20", "--json"], output: output)
 
     server.close
 
@@ -838,12 +656,7 @@ describe "Cryload E2E" do
     sleep 100.milliseconds
 
     output = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:#{port}", "-d", "1", "-c", "5", "--json"],
-      output: output,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:#{port}", "-d", "1", "-c", "5", "--json"], output: output)
 
     server.close
 
@@ -857,13 +670,7 @@ describe "Cryload E2E" do
   it "outputs transport errors in json when target is unreachable" do
     output = IO::Memory.new
     error = IO::Memory.new
-    process = Process.run(
-      "crystal",
-      ["run", "src/main.cr", "--", "http://127.0.0.1:19999", "-n", "3", "--json"],
-      output: output,
-      error: error,
-      chdir: File.dirname(__DIR__)
-    )
+    process = run_cryload(["http://127.0.0.1:19999", "-n", "3", "--json"], output: output, error: error)
 
     process.exit_code.should eq(1)
     parsed = JSON.parse(output.to_s)
