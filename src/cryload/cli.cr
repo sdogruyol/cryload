@@ -4,8 +4,14 @@ module Cryload
     def initialize
       @options = {} of Symbol => String | Int32 | Bool | Array(String)
       @show_help = false
+      @show_version = false
       @parse_error = false
       prepare_op
+
+      if @show_version
+        puts "cryload #{Cryload::VERSION}"
+        exit 0
+      end
 
       if @show_help
         exit(@parse_error ? 1 : 0)
@@ -116,6 +122,10 @@ module Cryload
           opts.on("-h", "--help", "Print Help") do
             puts opts
             @show_help = true
+          end
+
+          opts.on("-V", "--version", "Print version") do
+            @show_version = true
           end
 
           if ARGV.empty?
