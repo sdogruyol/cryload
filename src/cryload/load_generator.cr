@@ -159,7 +159,7 @@ module Cryload
     end
 
     private def client_for(uri : URI)
-      create_http_client uri
+      Cryload.create_http_client uri, @timeout_seconds, @insecure, @proxy
     end
 
     private def client_per_request? : Bool
@@ -278,10 +278,6 @@ module Cryload
     rescue URI::Error
       STDERR.puts "Invalid URL '#{url}'. Use an absolute http(s) URL (e.g. http://localhost:3000)."
       exit 1
-    end
-
-    private def create_http_client(uri)
-      Cryload.create_http_client uri, @timeout_seconds, @insecure, @proxy
     end
 
     private def transport_error_category(ex : Exception) : String
