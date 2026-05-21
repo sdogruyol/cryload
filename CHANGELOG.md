@@ -1,3 +1,28 @@
+# 4.0.0 (21-05-2026)
+
+- **Load testing** — Added `--warmup` to run untimed requests before the benchmark window
+- **Load testing** — Added `--proxy` for HTTP and HTTPS targets through an HTTP(S) proxy (including CONNECT tunneling)
+- **Load testing** — Added `--urls-file` for round-robin multi-URL targets; positional URL is optional when the file is provided
+- **Load testing** — Added repeatable `--cookie` flags and `--random-path` for cache-busting path segments
+- **CI/CD** — Added `--fail-on-error`, `--fail-on-transport-error`, `--max-fail-rate`, and `--max-p99` for pipeline-friendly exit codes
+- **CI/CD** — JSON output uses a structured schema (`summary`, `latency_ms`, `status`); legacy duplicate keys removed
+- **Performance** — Rate limiter now uses lock-free slot reservation instead of a global mutex
+- **Performance** — Redirect hops drain response bodies and close cross-origin clients to improve connection reuse
+- **Performance** — Duration mode freezes throughput timing at the deadline and drains late worker batches during a short grace window
+- **Resilience** — Transport errors from any request exception are counted without aborting workers
+- **CLI** — Live stderr progress is enabled by default (`--no-progress` to disable)
+- **CLI** — Added `-V` / `--version` to print the installed release
+- **Refactor** — Split monolithic source into focused modules under `src/cryload/`
+- **Refactor** — Split CLI validation and option resolution into `Cli::Validator` and `Cli::OptionsBuilder`
+- **Documentation** — README now documents exit codes, JSON fields, CI threshold examples, and a GitHub Actions workflow snippet
+- **Documentation** — Added [docs/json-output.md](docs/json-output.md) JSON field reference
+- **Releases** — GitHub Releases now include notes extracted from `CHANGELOG.md`
+- **Tests** — Added unit specs for `Request` redirects, `Logger` JSON/CSV output, HTTPS `--insecure`, and CLI validation for proxy/cookie/warmup
+- **Tests** — Spec helper rebuilds the binary when source files change
+- **Architecture** — Single shutdown path via `ShutdownCoordinator` (one `log_final` + exit)
+- **Tests** — Added live `--progress` stderr e2e and HTTP `--proxy` integration test
+- **Releases** — Added Linux arm64 binary, post-build smoke tests, and install script arm64 detection
+
 # 3.2.0 (18-04-2026)
 
 - **Documentation** — README tagline and positioning now describe cryload as a cross-platform HTTP load testing CLI and a modern **ab** / **wrk** alternative with machine-readable **CI/CD** reports
