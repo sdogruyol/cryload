@@ -1,4 +1,5 @@
 require "./spec_helper"
+require "./support/test_tls"
 require "http/server"
 require "json"
 
@@ -887,5 +888,50 @@ describe "Cryload E2E" do
 
     output.to_s.should contain("Warmup: 1s")
     output.to_s.should contain("Warming up for 1s")
+  end
+
+  it "accepts self-signed HTTPS certificates with --insecure" do
+    server, port = TestTls.start do |context|
+      context.response.status_code = 200
+      context.response.print "secure-ok"
+    end
+
+    output = IO::Memory.new
+    process = run_cryload(["https://127.0.0.1:#{port}", "-n", "3", "--insecure", "--no-progress"], output: output)
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("Successful: 3")
+  end
+
+  it "exits with error on invalid proxy URL" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--proxy", "ftp://proxy.local:8080"], output: output, error: error)
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Invalid proxy URL")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error on invalid cookie format" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--cookie", "invalid-cookie"], output: output, error: error)
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Invalid cookie format")
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error on negative warmup" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--warmup", "-1"], output: output, error: error)
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Warmup must be 0 or greater")
+    process.exit_code.should eq(1)
   end
 end

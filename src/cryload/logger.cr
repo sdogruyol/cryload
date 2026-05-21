@@ -75,17 +75,12 @@ module Cryload
       end
 
       if s.json_output
-        payload = build_json_payload s, total, response_count, error_count, elapsed, rps, total_response_bytes,
-          average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms,
-          p10_ms, p25_ms, p50_ms, p75_ms, p90_ms, p95_ms, p99_ms, p999_ms, success_percent, failure_percent,
-          transport_error_percent, success_status_ranges, status_distribution, transport_error_distribution,
-          histogram_bins
-        puts payload.to_json
+        puts json_document(s)
         return
       end
 
       if s.csv_output
-        print_csv total, response_count, error_count, elapsed, rps, total_response_bytes, average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, s.ok_requests, s.not_ok_requests, success_percent, failure_percent, transport_error_percent, success_status_ranges, status_distribution, transport_error_distribution
+        puts csv_document(s)
         return
       end
 
@@ -144,6 +139,141 @@ module Cryload
           puts "  [#{entry[:label]}] #{entry[:count]} errors (#{entry[:percent]}%)"
         end
       end
+    end
+
+    def self.json_document(s : Stats) : String
+      metrics = report_metrics(s)
+      build_json_payload(
+        s, metrics.total, metrics.response_count, metrics.error_count, metrics.elapsed, metrics.rps,
+        metrics.total_response_bytes, metrics.average_bytes_per_response, metrics.bytes_per_second,
+        metrics.avg_ms, metrics.min_ms, metrics.stdev_ms, metrics.max_ms,
+        metrics.p10_ms, metrics.p25_ms, metrics.p50_ms, metrics.p75_ms, metrics.p90_ms, metrics.p95_ms,
+        metrics.p99_ms, metrics.p999_ms, metrics.success_percent, metrics.failure_percent,
+        metrics.transport_error_percent, metrics.success_status_ranges, metrics.status_distribution,
+        metrics.transport_error_distribution, metrics.histogram_bins
+      ).to_json
+    end
+
+    def self.csv_document(s : Stats) : String
+      metrics = report_metrics(s)
+      format_csv(
+        metrics.total, metrics.response_count, metrics.error_count, metrics.elapsed, metrics.rps,
+        metrics.total_response_bytes, metrics.average_bytes_per_response, metrics.bytes_per_second,
+        metrics.avg_ms, metrics.min_ms, metrics.stdev_ms, metrics.max_ms,
+        metrics.p50_ms, metrics.p90_ms, metrics.p95_ms, metrics.p99_ms, metrics.p999_ms,
+        s.ok_requests, s.not_ok_requests, metrics.success_percent, metrics.failure_percent,
+        metrics.transport_error_percent, metrics.success_status_ranges, metrics.status_distribution,
+        metrics.transport_error_distribution, s.url, s.duration_mode
+      )
+    end
+
+    private struct ReportMetrics
+      @total : Int64
+      @response_count : Int64
+      @error_count : Int64
+      @elapsed : Float64
+      @rps : Float64
+      @total_response_bytes : Int64
+      @average_bytes_per_response : Float64
+      @bytes_per_second : Float64
+      @avg_ms : Float64
+      @min_ms : Float64
+      @stdev_ms : Float64
+      @max_ms : Float64
+      @p10_ms : Float64
+      @p25_ms : Float64
+      @p50_ms : Float64
+      @p75_ms : Float64
+      @p90_ms : Float64
+      @p95_ms : Float64
+      @p99_ms : Float64
+      @p999_ms : Float64
+      @success_percent : Float64
+      @failure_percent : Float64
+      @transport_error_percent : Float64
+      @success_status_ranges : Array(String)
+      @status_distribution : Array(NamedTuple(label: String, count: Int64, percent: Float64))
+      @transport_error_distribution : Array(NamedTuple(label: String, count: Int64, percent: Float64))
+      @histogram_bins : Array(NamedTuple(start_ms: Float64, end_ms: Float64, count: Int64, percent: Float64))
+
+      getter total, response_count, error_count, elapsed, rps
+      getter total_response_bytes, average_bytes_per_response, bytes_per_second
+      getter avg_ms, min_ms, stdev_ms, max_ms
+      getter p10_ms, p25_ms, p50_ms, p75_ms, p90_ms, p95_ms, p99_ms, p999_ms
+      getter success_percent, failure_percent, transport_error_percent
+      getter success_status_ranges, status_distribution, transport_error_distribution, histogram_bins
+
+      def initialize(
+        @total : Int64,
+        @response_count : Int64,
+        @error_count : Int64,
+        @elapsed : Float64,
+        @rps : Float64,
+        @total_response_bytes : Int64,
+        @average_bytes_per_response : Float64,
+        @bytes_per_second : Float64,
+        @avg_ms : Float64,
+        @min_ms : Float64,
+        @stdev_ms : Float64,
+        @max_ms : Float64,
+        @p10_ms : Float64,
+        @p25_ms : Float64,
+        @p50_ms : Float64,
+        @p75_ms : Float64,
+        @p90_ms : Float64,
+        @p95_ms : Float64,
+        @p99_ms : Float64,
+        @p999_ms : Float64,
+        @success_percent : Float64,
+        @failure_percent : Float64,
+        @transport_error_percent : Float64,
+        @success_status_ranges : Array(String),
+        @status_distribution : Array(NamedTuple(label: String, count: Int64, percent: Float64)),
+        @transport_error_distribution : Array(NamedTuple(label: String, count: Int64, percent: Float64)),
+        @histogram_bins : Array(NamedTuple(start_ms: Float64, end_ms: Float64, count: Int64, percent: Float64)),
+      )
+      end
+    end
+
+    private def self.report_metrics(s : Stats) : ReportMetrics
+      total = s.total_request_count
+      response_count = s.response_count
+      error_count = s.transport_error_count
+      success_status_ranges = s.success_status_ranges.map do |status_range|
+        status_range.begin == status_range.end ? status_range.begin.to_s : "#{status_range.begin}-#{status_range.end}"
+      end
+      status_distribution = build_status_distribution s.status_code_counts, response_count
+      transport_error_distribution = build_error_distribution s.error_counts, error_count
+
+      ReportMetrics.new(
+        total,
+        response_count,
+        error_count,
+        s.wall_clock_seconds.round(2),
+        s.request_per_second.round(2),
+        s.total_response_bytes,
+        s.average_bytes_per_response,
+        s.bytes_per_second,
+        s.average_request_time.round(2),
+        s.min_request_time.round(2),
+        s.latency_stdev.round(2),
+        s.max_request_time.round(2),
+        s.p10_request_time.round(2),
+        s.p25_request_time.round(2),
+        s.p50_request_time.round(2),
+        s.p75_request_time.round(2),
+        s.p90_request_time.round(2),
+        s.p95_request_time.round(2),
+        s.p99_request_time.round(2),
+        s.p999_request_time.round(2),
+        percentage(s.ok_requests, response_count),
+        percentage(s.not_ok_requests, response_count),
+        percentage(error_count, total),
+        success_status_ranges,
+        status_distribution,
+        transport_error_distribution,
+        s.latency_histogram_bins,
+      )
     end
 
     private def self.build_json_payload(
@@ -216,7 +346,13 @@ module Cryload
       }
     end
 
-    private def self.print_csv(total, response_count, error_count, elapsed, rps, total_response_bytes, average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, successful_count, failed_count, successful_percent, failed_percent, transport_error_percent, success_status_ranges, status_distribution, transport_error_distribution)
+    private def self.format_csv(
+      total, response_count, error_count, elapsed, rps, total_response_bytes,
+      average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms,
+      p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, successful_count, failed_count,
+      successful_percent, failed_percent, transport_error_percent, success_status_ranges,
+      status_distribution, transport_error_distribution, url : String, duration_mode : Bool
+    )
       headers = [
         "url",
         "duration_mode",
@@ -252,8 +388,8 @@ module Cryload
       status_codes = status_distribution.map { |entry| "#{entry[:label]}:#{entry[:count]}:#{entry[:percent]}%" }.join(";")
       errors = transport_error_distribution.map { |entry| "#{entry[:label]}:#{entry[:count]}:#{entry[:percent]}%" }.join(";")
       row = [
-        Cryload.stats.url,
-        Cryload.stats.duration_mode.to_s,
+        url,
+        duration_mode.to_s,
         total.to_s,
         response_count.to_s,
         error_count.to_s,
@@ -282,11 +418,10 @@ module Cryload
         status_codes,
         errors,
       ]
-      csv_output = CSV.build do |csv|
+      CSV.build do |csv|
         csv.row headers
         csv.row row
       end
-      puts csv_output
     end
 
     private def self.percentage(count : Int64, total : Int64)
