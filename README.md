@@ -26,6 +26,7 @@ Rough feature snapshot (tools evolve; check each project’s docs for the latest
 | **JSON** / **CSV** / quiet output for **CI/CD** | ✓ | — (text) | JSON | JSON | — (text / Lua) |
 | Text latency **histogram** + distribution | ✓ | basic | limited | TUI-focused | basic |
 | Global **RPS cap** (`--rate`) | ✓ | — | — | ✓ | different model |
+| **Warmup**, **proxy**, **cookies**, multi-URL file | ✓ | — | partial | partial | — |
 | **Follow redirects**, custom **success** HTTP codes | ✓ | — | partial | partial | — |
 | **Scriptable** load (Lua, etc.) | — | — | — | — | ✓ |
 
@@ -40,6 +41,8 @@ Choose **wrk** when you need Lua-driven scenarios and maximum tuning on Linux. C
 - JSON output mode for CI/CD and automation workflows
 - Richer latency percentiles plus response/error breakdowns
 - Optional global request rate limiting with `--rate`
+- Warmup phase, HTTP(S) proxy, session cookies, multi-URL targets, and cache-busting random paths
+- Live progress updates on stderr during text output (disable with `--no-progress`)
 
 ## Installation
 
@@ -56,7 +59,7 @@ curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/in
 Install a specific version:
 
 ```bash
-VERSION=v3.1.0 curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh -s
+VERSION=v4.0.0 curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh -s
 ```
 
 **Windows** (PowerShell):
@@ -67,7 +70,7 @@ iwr -useb https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/ins
 
 ### Option 2: Prebuilt binary
 
-Download the matching asset from the [Releases page](https://github.com/sdogruyol/cryload/releases) (`cryload-linux`, `cryload-macos`, or `cryload-windows.exe`).
+Download the matching asset from the [Releases page](https://github.com/sdogruyol/cryload/releases) (`cryload-linux`, `cryload-linux-arm64`, `cryload-macos`, or `cryload-windows.exe`).
 
 **Linux:**
 
@@ -130,6 +133,18 @@ cryload <url> [options]
 | `--success-status` | Treat specific status codes/ranges as successful |
 | `--insecure` | Accept invalid TLS certificates for HTTPS |
 | `--json` | Print final result as JSON |
+| `--fail-on-error` | Exit with code 1 when any HTTP or transport error occurs |
+| `--fail-on-transport-error` | Exit with code 1 when any transport error occurs |
+| `--max-fail-rate` | Exit with code 1 when failure rate exceeds PERCENT |
+| `--max-p99` | Exit with code 1 when p99 latency exceeds MS milliseconds |
+| `--warmup` | Warm up before the timed benchmark (seconds) |
+| `--proxy` | HTTP(S) proxy (`http://host:port` or `http://user:pass@host:port`) |
+| `--no-progress` | Disable live progress on stderr |
+| `--progress` | Show live progress on stderr during the run (default) |
+| `--cookie` | Cookie value, repeatable (`name=value`) |
+| `--urls-file` | Load target URLs from file (one http(s) URL per line) |
+| `--random-path` | Append a random path segment to each request URL |
+| `-V`, `--version` | Print version |
 | `-h`, `--help` | Show help |
 
 **Examples:**
@@ -189,6 +204,32 @@ Rate-limited run at 100 requests/sec total
 cryload http://localhost:3000/api -n 1000 -c 50 --rate 100
 ```
 
+Warmup before the timed benchmark
+```bash
+cryload http://localhost:3000 -d 30 -c 50 --warmup 5
+```
+
+HTTP(S) proxy
+```bash
+cryload http://localhost:3000 -n 100 --proxy http://127.0.0.1:8080
+cryload https://api.example.com -n 100 --proxy http://user:pass@proxy.example.com:8080
+```
+
+Session cookies (repeatable)
+```bash
+cryload http://localhost:3000/api -n 100 --cookie session=abc123 --cookie theme=dark
+```
+
+Multiple URLs from file (positional URL optional)
+```bash
+cryload --urls-file targets.txt -n 1000 -c 50
+```
+
+Cache-busting random path on each request
+```bash
+cryload http://localhost:3000/api -n 500 --random-path
+```
+
 Follow redirects
 ```bash
 cryload http://localhost:3000/redirect -n 100 -L
@@ -219,59 +260,81 @@ Quiet mode for exit-code-only checks
 cryload http://localhost:3000/health -n 10 --output-format quiet
 ```
 
-**Example output:**
+CI failure thresholds
+```bash
+cryload http://localhost:3000/api -n 1000 --fail-on-error
+cryload http://localhost:3000/api -n 1000 --max-fail-rate 5
+cryload http://localhost:3000/api -n 1000 --max-p99 200
+```
+
+Print version
+```bash
+cryload --version
+```
+
+**Example output** (_sample run: `-d 10 -c 10` against a local server with a 13-byte body_):
 
 ```
-Preparing to make it CRY for 10 seconds with 100 connections!
-Running load test @ http://localhost:3000/
+Preparing to make it CRY for 10 seconds with 10 connections!
+Running load test @ http://127.0.0.1:3000
 Mode: duration (10s)
-Connections: 100
+Connections: 10
 Rate limit: unlimited
+Warmup: none
 Success statuses: 200-299
 
 Summary
-  Total requests: 1696170
-  Total time: 10.11s
-  Requests/sec: 167803.62
-  Responses: 1696170
+  Total requests: 161551
+  Total time: 10.0s
+  Requests/sec: 16155.06
+  Responses: 161551
   Transport errors: 0 (0.0%)
-  Fastest: 0.19 ms
-  Slowest: 35.39 ms
+  Fastest: 0.1 ms
+  Slowest: 2043.12 ms
 
 Status
-  Successful: 1696170 (100.0%)
+  Successful: 161551 (100.0%)
   Failed: 0 (0.0%)
   Success statuses: 200-299
 
 Transfer
-  Total data: 374.14 MiB
-  Size/request: 231.0 B
-  Transfer/sec: 37.01 MiB/s
+  Total data: 2.0 MiB
+  Size/request: 13.0 B
+  Transfer/sec: 205.09 KiB/s
 
 Latency (ms)
-  avg: 0.53   min: 0.19   stdev: 0.76   max: 35.39
+  avg: 0.62   min: 0.1   stdev: 16.71   max: 2043.1
 
 Latency Percentiles (ms)
-  p50: 0.41   p90: 0.81   p95: 0.96
-  p99: 1.34   p999: 3.72
+  p50: 0.3   p90: 0.5   p95: 0.6
+  p99: 0.9   p999: 1.4
 
 Latency Histogram (ms)
-  3.390 ms [120] |■■
-  6.590 ms [420] |■■■■■■■
-  9.790 ms [1690630] |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+   185.8 ms [161512] |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+   371.6 ms [0] |
+   557.3 ms [0] |
+   743.0 ms [0] |
+   928.8 ms [0] |
+  1114.5 ms [35] |■
+  1300.2 ms [3] |■
+  1485.9 ms [0] |
+  1671.7 ms [0] |
+  1857.4 ms [0] |
+  2043.1 ms [1] |■
 
 Latency Distribution (ms)
-  10.0% in 0.32
-  25.0% in 0.38
-  50.0% in 0.41
-  75.0% in 0.55
-  90.0% in 0.81
-  95.0% in 0.96
-  99.0% in 1.34
-  99.9% in 3.72
+  10.0% in 0.1
+  25.0% in 0.2
+  50.0% in 0.3
+  75.0% in 0.4
+  90.0% in 0.5
+  95.0% in 0.6
+  99.0% in 0.9
+  99.9% in 1.4
+
 
 Status Code Distribution
-  [200] 1696170 responses (100.0%)
+  [200] 161551 responses (100.0%)
 ```
 
 ## Built With Crystal
@@ -280,7 +343,71 @@ cryload is written in [Crystal](https://crystal-lang.org/), combining Ruby-like 
 
 ## Automation and CI
 
-Use **`--json`** or **`--output-format csv`** for scripts, dashboards, and **GitHub Actions** jobs: parse a single structured summary instead of scraping text. **`--output-format quiet`** is useful when you only care about exit status after a small **health-check** load. Combine with **`-n`** for fixed request counts so pipelines stay deterministic.
+Use **`--json`** or **`--output-format csv`** for scripts, dashboards, and **GitHub Actions** jobs: parse a single structured summary instead of scraping text. Combine with **`-n`** for fixed request counts so pipelines stay deterministic.
+
+### Exit codes
+
+| Code | When |
+|------|------|
+| `0` | Run completed and all configured thresholds passed |
+| `1` | Validation/usage error, or a CI threshold failed |
+
+**Default failure behavior:** exit `1` only when every request is a transport error (no HTTP responses received).
+
+**Optional CI thresholds** (combine as needed; any violation exits `1`):
+
+| Flag | Effect |
+|------|--------|
+| `--fail-on-error` | Fail on any HTTP failure or transport error |
+| `--fail-on-transport-error` | Fail on any transport error, even if some requests succeed |
+| `--max-fail-rate 5` | Fail when `(HTTP failures + transport errors) / total requests` exceeds 5% |
+| `--max-p99 200` | Fail when p99 latency exceeds 200 ms |
+
+**Examples:**
+
+```bash
+# Smoke test: any 4xx/5xx or connection error fails the job
+cryload http://localhost:3000/health -n 50 --fail-on-error --output-format quiet
+
+# SLA gate: p99 must stay under 200 ms, failure rate under 1%
+cryload http://localhost:3000/api -n 1000 --max-p99 200 --max-fail-rate 1 --output-format quiet
+```
+
+### JSON output
+
+`--json` / `--output-format json` emits structured JSON with these sections:
+
+| Section | Fields |
+|---------|--------|
+| `summary` | `requests`, `responses`, `transport_errors`, `elapsed_seconds`, `requests_per_second`, `failure_rate_percent` |
+| `transfer` | `total_bytes`, `size_per_request_bytes`, `bytes_per_second` (response body only) |
+| `latency_ms` | `avg`, `min`, `max`, `stdev`, `p10`, `p25`, `p50`, `p75`, `p90`, `p95`, `p99`, `p999` |
+| `latency_histogram[]` | `start_ms`, `end_ms`, `count`, `percent` |
+| `status` | `success_statuses`, `successful_count`, `successful_percent`, `failed_count`, `failed_percent`, `transport_error_percent`, `codes[]`, `transport_errors[]` |
+
+Also includes top-level `url` and `duration_mode`. Full field reference: [docs/json-output.md](docs/json-output.md).
+
+### GitHub Actions example
+
+```yaml
+- name: Install cryload
+  run: curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh -s
+
+- name: Verify binary
+  run: cryload --version
+
+- name: Smoke test API
+  run: |
+    cryload http://localhost:3000/health -n 100 --fail-on-error --output-format quiet
+
+- name: Latency SLA check
+  run: |
+    cryload http://localhost:3000/api -n 500 --max-p99 250 --json > result.json
+    jq -e '.summary.failure_rate_percent <= 1' result.json
+    jq -e '.latency_ms.p99 <= 250' result.json
+```
+
+**Note:** `--output-format quiet` suppresses report output; combine with threshold flags when you only need pass/fail from the exit code.
 
 ## Contributing
 
