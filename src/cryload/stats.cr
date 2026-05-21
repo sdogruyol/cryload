@@ -301,7 +301,8 @@ module Cryload
         @latency_histogram.each_with_index do |count, index|
           next if count == 0
 
-          bin_index = (((index.to_f - @min_request_time_ms) / span_ms) * effective_bin_count).floor.to_i
+          latency_ms = index.to_f * HISTOGRAM_BUCKET_SIZE_MS
+          bin_index = (((latency_ms - @min_request_time_ms) / span_ms) * effective_bin_count).floor.to_i
           bin_index = 0 if bin_index < 0
           bin_index = effective_bin_count - 1 if bin_index >= effective_bin_count
           counts[bin_index] += count
