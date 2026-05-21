@@ -205,20 +205,20 @@ module Cryload
 
     def spawn_receive_loop_requests(stats_channel, done_channel, worker_count)
       done_count = 0
+      finished = false
 
-      loop do
+      until finished
         select
         when batch = stats_channel.receive
           Cryload.stats.merge_batch batch
-          ExecutionHandler.check
+          finished = ShutdownCoordinator.update_after_batch
         when done_channel.receive
           done_count += 1
-          break if done_count >= worker_count
+          finished = true if done_count >= worker_count
         end
       end
 
-      Logger.log_final
-      exit Cryload.stats.final_exit_code
+      ShutdownCoordinator.finish
     end
 
     def spawn_receive_loop_duration(stats_channel, done_channel, worker_count)
@@ -226,8 +226,9 @@ module Cryload
       done_count = 0
       draining = false
       drain_deadline = Time.instant
+      finished = false
 
-      loop do
+      until finished
         if draining
           remaining = drain_deadline - Time.instant
           break unless remaining.positive?
@@ -237,9 +238,9 @@ module Cryload
             Cryload.stats.merge_batch batch
           when done_channel.receive
             done_count += 1
-            break if done_count >= worker_count
+            finished = true if done_count >= worker_count
           when timeout(remaining)
-            break
+            finished = true
           end
         else
           remaining = deadline - Time.instant
@@ -247,10 +248,10 @@ module Cryload
             select
             when batch = stats_channel.receive
               Cryload.stats.merge_batch batch
-              ExecutionHandler.check_duration
+              ShutdownCoordinator.update_during_duration
             when done_channel.receive
               done_count += 1
-              break if done_count >= worker_count
+              finished = true if done_count >= worker_count
             when timeout(remaining)
               Cryload.stats.mark_benchmark_end
               draining = true
@@ -264,8 +265,7 @@ module Cryload
         end
       end
 
-      Logger.log_final
-      exit Cryload.stats.final_exit_code
+      ShutdownCoordinator.finish
     end
 
     private def parse_uri(url : String)
