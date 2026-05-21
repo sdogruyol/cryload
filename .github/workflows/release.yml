@@ -66,6 +66,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -80,9 +82,16 @@ jobs:
           (cd dist/cryload-macos && sha256sum cryload-macos > cryload-macos.sha256)
           (cd dist/cryload-windows && sha256sum cryload-windows.exe > cryload-windows.exe.sha256)
 
+      - name: Build release notes from CHANGELOG
+        run: |
+          chmod +x scripts/release-notes.sh
+          scripts/release-notes.sh "${GITHUB_REF_NAME}" > release-notes.md
+          test -s release-notes.md
+
       - name: Publish release with binaries
         uses: softprops/action-gh-release@v2
         with:
+          body_path: release-notes.md
           files: |
             dist/cryload-linux/cryload-linux
             dist/cryload-linux/cryload-linux.sha256
