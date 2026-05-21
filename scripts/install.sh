@@ -108,8 +108,16 @@ verify_sha256() {
 }
 
 uname_s="$(uname -s 2>/dev/null || echo unknown)"
+uname_m="$(uname -m 2>/dev/null || echo unknown)"
 case "$uname_s" in
-  Linux*) OS=linux; ASSET="cryload-linux"; BIN_NAME="cryload" ;;
+  Linux*)
+    OS=linux
+    case "$uname_m" in
+      aarch64|arm64) ASSET="cryload-linux-arm64" ;;
+      *) ASSET="cryload-linux" ;;
+    esac
+    BIN_NAME="cryload"
+    ;;
   Darwin*) OS=macos; ASSET="cryload-macos"; BIN_NAME="cryload" ;;
   MINGW*|MSYS*|CYGWIN*)
     OS=windows
