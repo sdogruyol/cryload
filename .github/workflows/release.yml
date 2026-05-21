@@ -7,9 +7,26 @@ on:
   workflow_dispatch:
 
 jobs:
+  spec:
+    name: Run specs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: "1.19.0"
+
+      - name: Install dependencies
+        run: shards install
+
+      - name: Run specs
+        run: crystal spec
+
   build-binaries:
     name: Build pre-built binary (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    needs: spec
     strategy:
       fail-fast: false
       matrix:
@@ -45,7 +62,7 @@ jobs:
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: build-binaries
+    needs: [spec, build-binaries]
     permissions:
       contents: write
     steps:
