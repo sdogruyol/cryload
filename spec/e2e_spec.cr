@@ -1,5 +1,6 @@
 require "./spec_helper"
 require "./support/test_tls"
+require "./support/mock_proxy"
 require "http/server"
 require "json"
 
@@ -933,5 +934,48 @@ describe "Cryload E2E" do
     combined = output.to_s + error.to_s
     combined.should contain("Warmup must be 0 or greater")
     process.exit_code.should eq(1)
+  end
+
+  it "shows live progress on stderr during text output" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "20", "-c", "2"], output: output, error: error)
+
+    server.close
+
+    process.exit_code.should eq(0)
+    error.to_s.should contain("Progress:")
+    error.to_s.should contain("req/s")
+    output.to_s.should contain("Successful: 20")
+  end
+
+  it "routes HTTP requests through --proxy" do
+    server, proxy_port, request_lines, lines_mutex = MockProxy.start
+    target_port = 19_999
+
+    output = IO::Memory.new
+    process = run_cryload(
+      ["http://127.0.0.1:#{target_port}", "--proxy", "http://127.0.0.1:#{proxy_port}", "-n", "3", "--no-progress"],
+      output: output,
+    )
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("Successful: 3")
+    lines_mutex.synchronize do
+      request_lines.any? { |line| line.includes?("http://127.0.0.1:#{target_port}") }.should be_true
+    end
   end
 end
