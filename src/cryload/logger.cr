@@ -4,7 +4,7 @@ module Cryload
   # Singleton class which handles all the logging
   class Logger
     # Logs the test header
-    def self.log_header(url : String, duration_sec : Int32?, request_count : Int32?, connections : Int32, rate_limit : Int32?)
+    def self.log_header(url : String, duration_sec : Int32?, request_count : Int32?, connections : Int32, rate_limit : Int32?, warmup_seconds : Int32 = 0)
       return unless Cryload.stats.output_format == "text"
 
       mode = if duration_sec
@@ -17,12 +17,29 @@ module Cryload
       puts "Mode: #{mode}"
       puts "Connections: #{connections}"
       puts "Rate limit: #{rate_limit ? "#{rate_limit} req/s" : "unlimited"}"
+      puts "Warmup: #{warmup_seconds > 0 ? "#{warmup_seconds}s" : "none"}"
       puts "Success statuses: #{format_success_statuses(Cryload.stats.success_status_ranges)}"
       puts
     end
 
+    def self.log_warmup(seconds : Int32)
+      return unless Cryload.stats.text_output?
+      puts "Warming up for #{seconds}s...".colorize(:yellow)
+    end
+
+    def self.log_progress
+      return unless Cryload.stats.progress_enabled
+      return unless Cryload.stats.text_output?
+
+      stats = Cryload.stats
+      count = stats.total_request_count
+      rps = stats.request_per_second.round(0)
+      STDERR.print "\r  Progress: #{count} requests, #{rps} req/s"
+    end
+
     # Logs the final stats
     def self.log_final
+      STDERR.puts if Cryload.stats.progress_enabled && Cryload.stats.text_output?
       s = Cryload.stats
 
       avg_ms = s.average_request_time.round(2)
@@ -137,7 +154,6 @@ module Cryload
       histogram_bins
     )
       {
-        "schema_version" => "v2",
         "url"            => s.url,
         "duration_mode"  => s.duration_mode,
         "summary"        => {

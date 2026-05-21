@@ -22,7 +22,8 @@ module Cryload
       end
 
       connections = @options[:connections].as(Int32)
-      server = @options[:server].as(String)
+      urls = resolve_urls
+      display_url = Cryload.display_url(urls)
       output_format = resolve_output_format
       method = @options[:method].as(String)
       body = resolve_body
@@ -31,14 +32,19 @@ module Cryload
       insecure = @options[:insecure]?.try(&.as(Bool)) || false
       follow_redirects = @options[:follow_redirects]?.try(&.as(Bool)) || false
       success_status_ranges = parse_success_status_ranges(@options[:success_status]?.try(&.as(String)))
-      headers = build_headers(@options[:headers].as(Array(String)))
+      headers = build_headers(@options[:headers].as(Array(String)), @options[:cookies].as(Array(String)))
       ci_thresholds = build_ci_thresholds
+      warmup_seconds = @options[:warmup]?.try(&.as(Int32)) || 0
+      progress = @options[:progress].as(Bool)
+      random_path = @options[:random_path]?.try(&.as(Bool)) || false
+      proxy = resolve_proxy
+
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
-        Cryload::LoadGenerator.new server, nil, connections, duration, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges, ci_thresholds
+        Cryload::LoadGenerator.new display_url, nil, connections, duration, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges, ci_thresholds, urls, warmup_seconds, proxy, progress, random_path
       else
         numbers = @options[:numbers].as(Int32)
-        Cryload::LoadGenerator.new server, numbers, connections, nil, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges, ci_thresholds
+        Cryload::LoadGenerator.new display_url, numbers, connections, nil, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges, ci_thresholds, urls, warmup_seconds, proxy, progress, random_path
       end
     end
 
@@ -47,6 +53,8 @@ module Cryload
       @options[:connections] = 10
       @options[:method] = "GET"
       @options[:headers] = [] of String
+      @options[:cookies] = [] of String
+      @options[:progress] = true
       begin
         OptionParser.parse(ARGV) do |opts|
           opts.banner = "Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD\n\nUsage: cryload <url> [options]"
@@ -136,6 +144,35 @@ module Cryload
             @options[:max_p99_ms] = v.to_f
           end
 
+          opts.on("--warmup SECONDS", "Warm up before the timed benchmark (seconds)") do |v|
+            @options[:warmup] = v.to_i
+          end
+
+          opts.on("--proxy URL", "HTTP(S) proxy (e.g. http://127.0.0.1:8080 or http://user:pass@proxy:8080)") do |v|
+            @options[:proxy] = v
+          end
+
+          opts.on("--no-progress", "Disable live progress on stderr") do
+            @options[:progress] = false
+          end
+
+          opts.on("--progress", "Show live progress on stderr during the run (default)") do
+            @options[:progress] = true
+          end
+
+          opts.on("--cookie COOKIE", "Cookie value, repeatable (name=value)") do |v|
+            cookies = @options[:cookies].as(Array(String))
+            cookies << v
+          end
+
+          opts.on("--urls-file PATH", "Load target URLs from file (one http(s) URL per line, # comments allowed)") do |v|
+            @options[:urls_file] = v
+          end
+
+          opts.on("--random-path", "Append a random path segment to each request URL") do
+            @options[:random_path] = true
+          end
+
           opts.on("-h", "--help", "Print Help") do
             puts opts
             @show_help = true
@@ -165,16 +202,33 @@ module Cryload
 
     # Validate the input from command line
     private def input_valid?
-      unless @options.has_key?(:server)
-        STDERR.puts "Usage: cryload <url> [options]".colorize(:red)
+      unless @options.has_key?(:server) || @options.has_key?(:urls_file)
+        STDERR.puts "Usage: cryload <url> [options]  (or --urls-file PATH)".colorize(:red)
         STDERR.puts "Example: cryload http://localhost:3000 -n 100".colorize(:red)
         return false
       end
 
-      server = @options[:server].as(String)
-      unless valid_url?(server)
-        STDERR.puts "Invalid URL '#{server}'. Use an absolute http(s) URL (e.g. http://localhost:3000).".colorize(:red)
-        return false
+      if @options.has_key?(:server)
+        server = @options[:server].as(String)
+        unless valid_url?(server)
+          STDERR.puts "Invalid URL '#{server}'. Use an absolute http(s) URL (e.g. http://localhost:3000).".colorize(:red)
+          return false
+        end
+      end
+
+      if @options.has_key?(:urls_file)
+        urls_file = @options[:urls_file].as(String)
+        unless File.file?(urls_file)
+          STDERR.puts "URLs file not found: #{urls_file}".colorize(:red)
+          return false
+        end
+
+        begin
+          resolve_urls
+        rescue ex : ArgumentError
+          STDERR.puts ex.message.to_s.colorize(:red)
+          return false
+        end
       end
 
       connections = @options[:connections].as(Int32)
@@ -306,6 +360,33 @@ module Cryload
         end
       end
 
+      if @options.has_key?(:warmup)
+        warmup = @options[:warmup].as(Int32)
+        if warmup < 0
+          STDERR.puts "Warmup must be 0 or greater.".colorize(:red)
+          return false
+        end
+      end
+
+      if @options.has_key?(:proxy)
+        proxy = @options[:proxy].as(String)
+        unless valid_proxy?(proxy)
+          STDERR.puts "Invalid proxy URL '#{proxy}'. Use http(s)://host[:port] (e.g. http://127.0.0.1:8080).".colorize(:red)
+          return false
+        end
+      end
+
+      cookies = @options[:cookies].as(Array(String))
+      if cookies.any? { |cookie| cookie.strip.empty? }
+        STDERR.puts "Cookie values must not be empty.".colorize(:red)
+        return false
+      end
+
+      unless cookies.all? { |cookie| valid_cookie?(cookie) }
+        STDERR.puts "Invalid cookie format. Use 'name=value'.".colorize(:red)
+        return false
+      end
+
       if @options.has_key?(:duration) && @options.has_key?(:numbers)
         STDERR.puts "Please specify only one mode: either '-n' or '-d'.".colorize(:red)
         return false
@@ -396,7 +477,7 @@ module Cryload
       File.read(body_file)
     end
 
-    private def build_headers(raw_headers : Array(String))
+    private def build_headers(raw_headers : Array(String), cookies : Array(String))
       headers = parse_headers(raw_headers)
       if host_header = @options[:host_header]?.try(&.as(String))
         headers["Host"] = host_header
@@ -406,6 +487,11 @@ module Cryload
       end
       if auth = @options[:basic_auth]?.try(&.as(String))
         headers["Authorization"] = "Basic #{Base64.strict_encode(auth)}"
+      end
+      unless cookies.empty?
+        existing = headers["Cookie"]?
+        cookie_values = existing ? [existing] + cookies : cookies
+        headers["Cookie"] = cookie_values.join("; ")
       end
       headers
     end
@@ -449,6 +535,37 @@ module Cryload
       uri.scheme == "http" || uri.scheme == "https"
     rescue URI::Error
       false
+    end
+
+    private def valid_proxy?(url : String)
+      uri = URI.parse(url)
+      return false if uri.host.nil?
+      uri.scheme == "http" || uri.scheme == "https"
+    rescue URI::Error
+      false
+    end
+
+    private def valid_cookie?(cookie : String)
+      parts = cookie.split("=", 2)
+      return false if parts.size != 2
+      !parts[0].strip.empty?
+    end
+
+    private def resolve_urls : Array(URI)
+      urls = [] of URI
+      if path = @options[:urls_file]?.try(&.as(String))
+        urls.concat Cryload.load_urls_from_file(path)
+      end
+      if server = @options[:server]?.try(&.as(String))
+        urls.unshift URI.parse(server)
+      end
+      urls
+    end
+
+    private def resolve_proxy : URI?
+      raw = @options[:proxy]?.try(&.as(String))
+      return nil unless raw
+      URI.parse(raw)
     end
   end
 end

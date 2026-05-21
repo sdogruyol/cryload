@@ -11,7 +11,17 @@ module Cryload
     getter :status_code
     getter :response_bytes
 
-    def initialize(http_client, uri, method : String, headers : HTTP::Headers, body : String?, timeout_seconds : Int32? = nil, insecure : Bool = false, follow_redirects : Bool = false)
+    def initialize(
+      http_client,
+      uri,
+      method : String,
+      headers : HTTP::Headers,
+      body : String?,
+      timeout_seconds : Int32? = nil,
+      insecure : Bool = false,
+      follow_redirects : Bool = false,
+      @proxy : URI? = nil,
+    )
       @start_time = Time.instant
       response = exec_request http_client, uri, method, headers, body, timeout_seconds, insecure, follow_redirects
       @response_bytes = response.body.to_s.bytesize.to_i64
@@ -19,14 +29,10 @@ module Cryload
       @status_code = response.status_code
     end
 
-    # Calculates time taken for the request (in milliseconds).
-    # Uses monotonic clock (Time.instant) to avoid negative values from system clock adjustments.
     def time_taken
       (@end_time - @start_time).total_seconds * 1000.0
     end
 
-    # Checks if response status_code is in between 200.300 meaning
-    # the request was successful
     def is_ok?
       (200..299).includes?(@status_code)
     end
@@ -41,7 +47,7 @@ module Cryload
 
       begin
         loop do
-          request = HTTP::Request.new(current_method, current_uri.request_target, headers, current_body)
+          request = HTTP::Request.new(current_method, request_target(current_uri), headers, current_body)
           response = current_client.exec(request)
 
           unless follow_redirects && redirect?(response) && redirects_remaining > 0
@@ -61,7 +67,7 @@ module Cryload
           end
 
           unless same_origin?(current_uri, next_uri)
-            owned_clients << Cryload.create_http_client(next_uri, timeout_seconds, insecure)
+            owned_clients << Cryload.create_http_client(next_uri, timeout_seconds, insecure, @proxy)
             current_client = owned_clients.last
           end
 
@@ -72,10 +78,17 @@ module Cryload
       end
     end
 
+    private def request_target(uri : URI) : String
+      if @proxy && uri.scheme == "http"
+        Cryload.proxy_request_target(uri)
+      else
+        uri.request_target
+      end
+    end
+
     private def drain_response_body(response)
       response.body
     rescue IO::Error
-      # Ignore drain failures on broken redirect responses.
     end
 
     private def redirect?(response)
@@ -85,11 +98,7 @@ module Cryload
     private def same_origin?(left : URI, right : URI)
       left.scheme == right.scheme &&
         left.host == right.host &&
-        effective_port(left) == effective_port(right)
-    end
-
-    private def effective_port(uri : URI)
-      uri.port || (uri.scheme == "https" ? 443 : 80)
+        Cryload.effective_port(left) == Cryload.effective_port(right)
     end
 
     private def resolve_redirect_uri(current_uri : URI, location : String)

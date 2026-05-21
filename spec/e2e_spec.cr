@@ -528,7 +528,6 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     parsed = JSON.parse(output.to_s)
-    parsed["schema_version"].as_s.should eq("v2")
     parsed["summary"]["requests"].as_i.should eq(20)
     parsed["summary"]["responses"].as_i.should eq(20)
     parsed["summary"]["transport_errors"].as_i.should eq(0)
@@ -758,5 +757,135 @@ describe "Cryload E2E" do
     combined = output.to_s + error.to_s
     combined.should contain("Max fail rate must be between 0 and 100")
     process.exit_code.should eq(1)
+  end
+
+  it "sends cookies with --cookie" do
+    cookie_value = Atomic(String?).new(nil)
+    server = HTTP::Server.new do |context|
+      cookie_value.set(context.request.headers["Cookie"]?)
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    run_cryload(["http://127.0.0.1:#{port}", "-n", "1", "--cookie", "session=abc123"], output: output)
+
+    server.close
+
+    cookie_value.get.should eq("session=abc123")
+    output.to_s.should contain("Successful: 1")
+  end
+
+  it "loads targets from --urls-file without a positional URL" do
+    count_a = Atomic(Int32).new(0)
+    count_b = Atomic(Int32).new(0)
+
+    server_a = HTTP::Server.new do |context|
+      count_a.add(1)
+      context.response.status_code = 200
+      context.response.print "A"
+    end
+    server_b = HTTP::Server.new do |context|
+      count_b.add(1)
+      context.response.status_code = 200
+      context.response.print "B"
+    end
+
+    address_a = server_a.bind_unused_port
+    address_b = server_b.bind_unused_port
+
+    urls_file = File.join(Dir.tempdir, "cryload-urls-#{Random.rand(100_000)}.txt")
+    File.write(urls_file, "http://127.0.0.1:#{address_a.port}\nhttp://127.0.0.1:#{address_b.port}\n")
+
+    spawn { server_a.listen }
+    spawn { server_b.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    run_cryload(["--urls-file", urls_file, "-n", "10", "-c", "2"], output: output)
+
+    server_a.close
+    server_b.close
+
+    count_a.get.should be > 0
+    count_b.get.should be > 0
+    output.to_s.should contain("(+1 more)")
+    output.to_s.should contain("Successful: 10")
+  ensure
+    File.delete?(urls_file) if urls_file
+  end
+
+  it "excludes warmup traffic from timed stats" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    run_cryload(["http://127.0.0.1:#{port}", "-n", "5", "--warmup", "1"], output: output)
+
+    server.close
+
+    output.to_s.should contain("Successful: 5")
+  end
+
+  it "appends random path segments with --random-path" do
+    paths = [] of String
+    paths_mutex = Mutex.new
+
+    server = HTTP::Server.new do |context|
+      paths_mutex.synchronize { paths << context.request.path }
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    run_cryload(["http://127.0.0.1:#{port}", "-n", "5", "--random-path"], output: output)
+
+    server.close
+
+    paths.size.should eq(5)
+    paths.each { |path| path.should_not eq("/") }
+    paths.uniq.size.should eq(5)
+    output.to_s.should contain("Successful: 5")
+  end
+
+  it "shows warmup in the text header" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    run_cryload(["http://127.0.0.1:#{port}", "-n", "1", "--warmup", "1"], output: output)
+
+    server.close
+
+    output.to_s.should contain("Warmup: 1s")
+    output.to_s.should contain("Warming up for 1s")
   end
 end

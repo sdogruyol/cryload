@@ -132,6 +132,7 @@ module Cryload
     getter :output_format
     getter :success_status_ranges
     getter :ci_thresholds
+    getter :progress_enabled
 
     TIME_IN_MILISECONDS = 1000
 
@@ -143,6 +144,7 @@ module Cryload
       @output_format : String = "text",
       @success_status_ranges : Array(Range(Int32, Int32)) = [200..299],
       @ci_thresholds : CiThresholds = CiThresholds.new,
+      @progress_enabled : Bool = false,
     )
       @total_request_count = 0_i64
       @response_count = 0_i64
@@ -369,6 +371,10 @@ module Cryload
       @output_format == "quiet"
     end
 
+    def text_output?
+      @output_format == "text"
+    end
+
     def <<(request : Request)
       record_response request.time_taken, request.status_code, request.response_bytes
     end
@@ -490,8 +496,9 @@ module Cryload
     output_format : String = "text",
     success_status_ranges : Array(Range(Int32, Int32)) = [200..299],
     ci_thresholds : CiThresholds = CiThresholds.new,
+    progress_enabled : Bool = false,
   )
-    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, output_format, success_status_ranges, ci_thresholds
+    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, output_format, success_status_ranges, ci_thresholds, progress_enabled
   end
 
   def self.stats
