@@ -4,7 +4,15 @@ require "../src/cryload"
 PROJECT_ROOT = File.expand_path("..", __DIR__)
 CRYLOAD_BIN = File.join(PROJECT_ROOT, "bin", "cryload")
 
-unless File.exists?(CRYLOAD_BIN)
+def cryload_sources_mtime : Time
+  paths = Dir.glob(File.join(PROJECT_ROOT, "src", "**", "*.cr")) + [File.join(PROJECT_ROOT, "shard.yml")]
+  paths.map { |path| File.info(path).modification_time }.max
+end
+
+needs_build = !File.exists?(CRYLOAD_BIN) ||
+  File.info(CRYLOAD_BIN).modification_time < cryload_sources_mtime
+
+if needs_build
   STDERR.puts "Building cryload for specs..."
   status = Process.run("shards", ["build"], chdir: PROJECT_ROOT)
   raise "Failed to build cryload binary (exit #{status.exit_code})" unless status.success?
