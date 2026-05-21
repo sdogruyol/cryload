@@ -24,7 +24,7 @@ jobs:
         run: crystal spec
 
   build-binaries:
-    name: Build pre-built binary (${{ matrix.os }})
+    name: Build pre-built binary (${{ matrix.artifact_name }})
     runs-on: ${{ matrix.os }}
     needs: spec
     strategy:
@@ -33,6 +33,9 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: cryload-linux
+            binary_path: bin/cryload
+          - os: ubuntu-24.04-arm
+            artifact_name: cryload-linux-arm64
             binary_path: bin/cryload
           - os: macos-latest
             artifact_name: cryload-macos
@@ -59,10 +62,41 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.binary_path }}
 
+  smoke-test:
+    name: Smoke test (${{ matrix.artifact_name }})
+    runs-on: ${{ matrix.smoke_os }}
+    needs: build-binaries
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - artifact_name: cryload-linux
+            smoke_os: ubuntu-latest
+          - artifact_name: cryload-linux-arm64
+            smoke_os: ubuntu-24.04-arm
+          - artifact_name: cryload-macos
+            smoke_os: macos-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.artifact_name }}
+
+      - name: Verify version and run a short benchmark
+        run: |
+          BIN="dist/${{ matrix.artifact_name }}/cryload"
+          chmod +x "$BIN"
+          "$BIN" --version
+          python3 -m http.server 8765 >/dev/null 2>&1 &
+          server_pid=$!
+          sleep 1
+          "$BIN" http://127.0.0.1:8765 -n 1 --no-progress --output-format quiet
+          kill "$server_pid"
+
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [spec, build-binaries]
+    needs: [spec, build-binaries, smoke-test]
     permissions:
       contents: write
     steps:
@@ -76,9 +110,11 @@ jobs:
       - name: Prepare release files
         run: |
           cp dist/cryload-linux/cryload dist/cryload-linux/cryload-linux
+          cp dist/cryload-linux-arm64/cryload dist/cryload-linux-arm64/cryload-linux-arm64
           cp dist/cryload-macos/cryload dist/cryload-macos/cryload-macos
           cp dist/cryload-windows/cryload.exe dist/cryload-windows/cryload-windows.exe
           (cd dist/cryload-linux && sha256sum cryload-linux > cryload-linux.sha256)
+          (cd dist/cryload-linux-arm64 && sha256sum cryload-linux-arm64 > cryload-linux-arm64.sha256)
           (cd dist/cryload-macos && sha256sum cryload-macos > cryload-macos.sha256)
           (cd dist/cryload-windows && sha256sum cryload-windows.exe > cryload-windows.exe.sha256)
 
@@ -95,6 +131,8 @@ jobs:
           files: |
             dist/cryload-linux/cryload-linux
             dist/cryload-linux/cryload-linux.sha256
+            dist/cryload-linux-arm64/cryload-linux-arm64
+            dist/cryload-linux-arm64/cryload-linux-arm64.sha256
             dist/cryload-macos/cryload-macos
             dist/cryload-macos/cryload-macos.sha256
             dist/cryload-windows/cryload-windows.exe
