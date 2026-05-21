@@ -127,6 +127,23 @@ describe "Cryload E2E" do
     output.to_s.should contain("--output-format")
     output.to_s.should contain("--success-status")
     output.to_s.should contain("--insecure")
+    output.to_s.should contain("--version")
+  end
+
+  it "prints version when -V is passed" do
+    output = IO::Memory.new
+    process = run_cryload(["-V"], output: output)
+
+    process.exit_code.should eq(0)
+    output.to_s.strip.should eq("cryload #{Cryload::VERSION}")
+  end
+
+  it "prints version when --version is passed" do
+    output = IO::Memory.new
+    process = run_cryload(["--version"], output: output)
+
+    process.exit_code.should eq(0)
+    output.to_s.strip.should start_with("cryload ")
   end
 
   it "exits with error when url is missing" do

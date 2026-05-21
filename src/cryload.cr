@@ -6,6 +6,8 @@ require "json"
 require "base64"
 
 module Cryload
+  VERSION = {{ `shards version #{__DIR__}/..`.strip.stringify }}
+
   DEFAULT_MAX_REDIRECTS = 5
 
   def self.create_http_client(uri, timeout_seconds : Int32? = nil, insecure : Bool = false)
