@@ -194,4 +194,11 @@ describe Cryload::Stats do
     stats.wall_clock_seconds.should be_close(2.0, 0.001)
     stats.request_per_second.should be_close(0.5, 0.001)
   end
+
+  it "uses benchmark end marker for throughput after duration cutoff" do
+    stats = Cryload::Stats.new(10, duration_mode: true, benchmark_start: Time.instant - 2.seconds)
+    stats.mark_benchmark_end
+
+    stats.wall_clock_seconds.should be_close(2.0, 0.05)
+  end
 end

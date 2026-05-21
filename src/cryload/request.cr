@@ -37,28 +37,45 @@ module Cryload
       current_method = method
       current_body = body
       redirects_remaining = Cryload::DEFAULT_MAX_REDIRECTS
+      owned_clients = [] of HTTP::Client
 
-      loop do
-        request = HTTP::Request.new(current_method, current_uri.request_target, headers, current_body)
-        response = current_client.exec(request)
-        return response unless follow_redirects
-        return response unless redirect?(response)
-        return response if redirects_remaining <= 0
+      begin
+        loop do
+          request = HTTP::Request.new(current_method, current_uri.request_target, headers, current_body)
+          response = current_client.exec(request)
 
-        location = response.headers["Location"]?
-        return response unless location
+          unless follow_redirects && redirect?(response) && redirects_remaining > 0
+            return response
+          end
 
-        next_uri = resolve_redirect_uri(current_uri, location)
-        redirects_remaining -= 1
+          location = response.headers["Location"]?
+          return response unless location
 
-        if {301, 302, 303}.includes?(response.status_code) && current_method != "HEAD"
-          current_method = "GET"
-          current_body = nil
+          drain_response_body response
+          next_uri = resolve_redirect_uri(current_uri, location)
+          redirects_remaining -= 1
+
+          if {301, 302, 303}.includes?(response.status_code) && current_method != "HEAD"
+            current_method = "GET"
+            current_body = nil
+          end
+
+          unless same_origin?(current_uri, next_uri)
+            owned_clients << Cryload.create_http_client(next_uri, timeout_seconds, insecure)
+            current_client = owned_clients.last
+          end
+
+          current_uri = next_uri
         end
-
-        current_client = same_origin?(current_uri, next_uri) ? current_client : Cryload.create_http_client(next_uri, timeout_seconds, insecure)
-        current_uri = next_uri
+      ensure
+        owned_clients.each(&.close)
       end
+    end
+
+    private def drain_response_body(response)
+      response.body
+    rescue IO::Error
+      # Ignore drain failures on broken redirect responses.
     end
 
     private def redirect?(response)

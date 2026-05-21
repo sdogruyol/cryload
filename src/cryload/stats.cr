@@ -122,6 +122,7 @@ module Cryload
     @status_code_counts : Hash(Int32, Int64)
     @error_counts : Hash(String, Int64)
     @mutex : Mutex
+    @benchmark_end : Time::Instant?
 
     getter :request_number
     getter :ongoing_check_number
@@ -201,7 +202,16 @@ module Cryload
 
     # Wall clock time from benchmark start to report completion.
     def wall_clock_seconds
-      (Time.instant - @benchmark_start).total_seconds
+      @mutex.synchronize do
+        end_at = @benchmark_end || Time.instant
+        (end_at - @benchmark_start).total_seconds
+      end
+    end
+
+    def mark_benchmark_end
+      @mutex.synchronize do
+        @benchmark_end ||= Time.instant
+      end
     end
 
     def total_request_time_in_seconds
