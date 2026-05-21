@@ -2,7 +2,7 @@
 module Cryload
   class Cli
     def initialize
-      @options = {} of Symbol => String | Int32 | Bool | Array(String)
+      @options = {} of Symbol => String | Int32 | Bool | Float64 | Array(String)
       @show_help = false
       @show_version = false
       @parse_error = false
@@ -32,12 +32,13 @@ module Cryload
       follow_redirects = @options[:follow_redirects]?.try(&.as(Bool)) || false
       success_status_ranges = parse_success_status_ranges(@options[:success_status]?.try(&.as(String)))
       headers = build_headers(@options[:headers].as(Array(String)))
+      ci_thresholds = build_ci_thresholds
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
-        Cryload::LoadGenerator.new server, nil, connections, duration, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges
+        Cryload::LoadGenerator.new server, nil, connections, duration, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges, ci_thresholds
       else
         numbers = @options[:numbers].as(Int32)
-        Cryload::LoadGenerator.new server, numbers, connections, nil, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges
+        Cryload::LoadGenerator.new server, numbers, connections, nil, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges, ci_thresholds
       end
     end
 
@@ -117,6 +118,22 @@ module Cryload
 
           opts.on("--json", "Output final results as JSON") do
             @options[:json] = true
+          end
+
+          opts.on("--fail-on-error", "Exit with code 1 when any HTTP or transport error occurs") do
+            @options[:fail_on_error] = true
+          end
+
+          opts.on("--fail-on-transport-error", "Exit with code 1 when any transport error occurs") do
+            @options[:fail_on_transport_error] = true
+          end
+
+          opts.on("--max-fail-rate PERCENT", "Exit with code 1 when failure rate exceeds PERCENT") do |v|
+            @options[:max_fail_rate] = v.to_f
+          end
+
+          opts.on("--max-p99 MS", "Exit with code 1 when p99 latency exceeds MS milliseconds") do |v|
+            @options[:max_p99_ms] = v.to_f
           end
 
           opts.on("-h", "--help", "Print Help") do
@@ -273,6 +290,22 @@ module Cryload
         end
       end
 
+      if @options.has_key?(:max_fail_rate)
+        max_fail_rate = @options[:max_fail_rate].as(Float64)
+        if max_fail_rate < 0.0 || max_fail_rate > 100.0
+          STDERR.puts "Max fail rate must be between 0 and 100.".colorize(:red)
+          return false
+        end
+      end
+
+      if @options.has_key?(:max_p99_ms)
+        max_p99_ms = @options[:max_p99_ms].as(Float64)
+        if max_p99_ms <= 0.0
+          STDERR.puts "Max p99 latency must be greater than 0 milliseconds.".colorize(:red)
+          return false
+        end
+      end
+
       if @options.has_key?(:duration) && @options.has_key?(:numbers)
         STDERR.puts "Please specify only one mode: either '-n' or '-d'.".colorize(:red)
         return false
@@ -312,6 +345,15 @@ module Cryload
     private def resolve_output_format
       return "json" if @options[:json]?.try(&.as(Bool))
       @options[:output_format]?.try(&.as(String)) || "text"
+    end
+
+    private def build_ci_thresholds : CiThresholds
+      CiThresholds.new(
+        fail_on_error: @options[:fail_on_error]?.try(&.as(Bool)) || false,
+        fail_on_transport_error: @options[:fail_on_transport_error]?.try(&.as(Bool)) || false,
+        max_fail_rate: @options[:max_fail_rate]?.try(&.as(Float64)),
+        max_p99_ms: @options[:max_p99_ms]?.try(&.as(Float64)),
+      )
     end
 
     private def parse_success_status_ranges(raw_value : String?)

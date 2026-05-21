@@ -76,12 +76,13 @@ module Cryload
       @rate_limit : Int32? = nil,
       @follow_redirects : Bool = false,
       @success_status_ranges : Array(Range(Int32, Int32)) = [200..299],
+      @ci_thresholds : CiThresholds = CiThresholds.new,
     )
       @request_number = request_number || -1
       @duration_seconds = duration_seconds
       @duration_mode = !@duration_seconds.nil?
 
-      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @output_format, @success_status_ranges
+      Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @output_format, @success_status_ranges, @ci_thresholds
       worker_count = @duration_mode ? {1, @connections}.max : {1, {@connections, @request_number}.min}.max
       Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count, @rate_limit
       request_channel, done_channel, worker_count = generate_request_channel
