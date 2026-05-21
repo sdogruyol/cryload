@@ -58,100 +58,11 @@ module Cryload
       end
 
       if s.json_output
-        latency_payload = {
-          "avg"     => avg_ms,
-          "fastest" => min_ms,
-          "min"     => min_ms,
-          "stdev"   => stdev_ms,
-          "slowest" => max_ms,
-          "max"     => max_ms,
-          "p10"     => p10_ms,
-          "p25"     => p25_ms,
-          "p50"     => p50_ms,
-          "p75"     => p75_ms,
-          "p90"     => p90_ms,
-          "p95"     => p95_ms,
-          "p99"     => p99_ms,
-          "p999"    => p999_ms,
-        }
-        latency_distribution_payload = {
-          "p10"  => p10_ms,
-          "p25"  => p25_ms,
-          "p50"  => p50_ms,
-          "p75"  => p75_ms,
-          "p90"  => p90_ms,
-          "p95"  => p95_ms,
-          "p99"  => p99_ms,
-          "p999" => p999_ms,
-        }
-        status_distribution_payload = status_distribution.map do |entry|
-          {
-            "code"    => entry[:label],
-            "count"   => entry[:count],
-            "percent" => entry[:percent],
-          }
-        end
-        transport_error_distribution_payload = transport_error_distribution.map do |entry|
-          {
-            "category" => entry[:label],
-            "count"    => entry[:count],
-            "percent"  => entry[:percent],
-          }
-        end
-        payload = {
-          "url"                 => s.url,
-          "duration_mode"       => s.duration_mode,
-          "requests"            => total,
-          "responses"           => response_count,
-          "transport_errors"    => error_count,
-          "elapsed_seconds"     => elapsed,
-          "requests_per_second" => rps,
-          "summary"             => {
-            "request_count"         => total,
-            "response_count"        => response_count,
-            "transport_error_count" => error_count,
-            "total_time_seconds"    => elapsed,
-            "requests_per_second"   => rps,
-          },
-          "transfer" => {
-            "total_bytes"            => total_response_bytes,
-            "size_per_request_bytes" => average_bytes_per_response.round(2),
-            "bytes_per_second"       => bytes_per_second.round(2),
-          },
-          "latency"                 => latency_payload,
-          "latency_ms"              => latency_payload,
-          "latency_distribution"    => latency_distribution_payload,
-          "latency_distribution_ms" => latency_distribution_payload,
-          "latency_histogram"       => histogram_bins.map do |bin|
-            {
-              "start_ms" => bin[:start_ms],
-              "end_ms"   => bin[:end_ms],
-              "count"    => bin[:count],
-              "percent"  => bin[:percent],
-            }
-          end,
-          "status" => {
-            "successful_count"             => s.ok_requests,
-            "successful_percent"           => success_percent,
-            "failed_count"                 => s.not_ok_requests,
-            "failed_percent"               => failure_percent,
-            "success_statuses"             => success_status_ranges,
-            "code_distribution"            => status_distribution_payload,
-            "transport_error_distribution" => transport_error_distribution_payload,
-          },
-          "status_counts" => {
-            "successful"         => s.ok_requests,
-            "successful_percent" => success_percent,
-            "failed"             => s.not_ok_requests,
-            "failed_percent"     => failure_percent,
-          },
-          "success_statuses"             => success_status_ranges,
-          "response_status_codes"        => exact_status_counts.transform_keys(&.to_s),
-          "status_code_distribution"     => status_distribution_payload,
-          "error_counts"                 => error_counts,
-          "transport_error_distribution" => transport_error_distribution_payload,
-          "transport_error_percent"      => transport_error_percent,
-        }
+        payload = build_json_payload s, total, response_count, error_count, elapsed, rps, total_response_bytes,
+          average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms,
+          p10_ms, p25_ms, p50_ms, p75_ms, p90_ms, p95_ms, p99_ms, p999_ms, success_percent, failure_percent,
+          transport_error_percent, success_status_ranges, status_distribution, transport_error_distribution,
+          histogram_bins
         puts payload.to_json
         return
       end
@@ -216,6 +127,77 @@ module Cryload
           puts "  [#{entry[:label]}] #{entry[:count]} errors (#{entry[:percent]}%)"
         end
       end
+    end
+
+    private def self.build_json_payload(
+      s, total, response_count, error_count, elapsed, rps, total_response_bytes,
+      average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms,
+      p10_ms, p25_ms, p50_ms, p75_ms, p90_ms, p95_ms, p99_ms, p999_ms, success_percent, failure_percent,
+      transport_error_percent, success_status_ranges, status_distribution, transport_error_distribution,
+      histogram_bins
+    )
+      {
+        "schema_version" => "v2",
+        "url"            => s.url,
+        "duration_mode"  => s.duration_mode,
+        "summary"        => {
+          "requests"            => total,
+          "responses"           => response_count,
+          "transport_errors"    => error_count,
+          "elapsed_seconds"     => elapsed,
+          "requests_per_second" => rps,
+          "failure_rate_percent" => s.failure_rate_percent.round(2),
+        },
+        "transfer" => {
+          "total_bytes"            => total_response_bytes,
+          "size_per_request_bytes" => average_bytes_per_response.round(2),
+          "bytes_per_second"       => bytes_per_second.round(2),
+        },
+        "latency_ms" => {
+          "avg"   => avg_ms,
+          "min"   => min_ms,
+          "max"   => max_ms,
+          "stdev" => stdev_ms,
+          "p10"   => p10_ms,
+          "p25"   => p25_ms,
+          "p50"   => p50_ms,
+          "p75"   => p75_ms,
+          "p90"   => p90_ms,
+          "p95"   => p95_ms,
+          "p99"   => p99_ms,
+          "p999"  => p999_ms,
+        },
+        "latency_histogram" => histogram_bins.map do |bin|
+          {
+            "start_ms" => bin[:start_ms],
+            "end_ms"   => bin[:end_ms],
+            "count"    => bin[:count],
+            "percent"  => bin[:percent],
+          }
+        end,
+        "status" => {
+          "success_statuses"       => success_status_ranges,
+          "successful_count"       => s.ok_requests,
+          "successful_percent"     => success_percent,
+          "failed_count"           => s.not_ok_requests,
+          "failed_percent"         => failure_percent,
+          "transport_error_percent" => transport_error_percent,
+          "codes"                  => status_distribution.map do |entry|
+            {
+              "code"    => entry[:label],
+              "count"   => entry[:count],
+              "percent" => entry[:percent],
+            }
+          end,
+          "transport_errors" => transport_error_distribution.map do |entry|
+            {
+              "category" => entry[:label],
+              "count"    => entry[:count],
+              "percent"  => entry[:percent],
+            }
+          end,
+        },
+      }
     end
 
     private def self.print_csv(total, response_count, error_count, elapsed, rps, total_response_bytes, average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms, p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, successful_count, failed_count, successful_percent, failed_percent, transport_error_percent, success_status_ranges, status_distribution, transport_error_distribution)

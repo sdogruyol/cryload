@@ -130,10 +130,19 @@ module Cryload
     getter :url
     getter :output_format
     getter :success_status_ranges
+    getter :ci_thresholds
 
     TIME_IN_MILISECONDS = 1000
 
-    def initialize(@request_number : Int32, @duration_mode : Bool = false, @benchmark_start : Time::Instant = Time.instant, @url : String = "", @output_format : String = "text", @success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
+    def initialize(
+      @request_number : Int32,
+      @duration_mode : Bool = false,
+      @benchmark_start : Time::Instant = Time.instant,
+      @url : String = "",
+      @output_format : String = "text",
+      @success_status_ranges : Array(Range(Int32, Int32)) = [200..299],
+      @ci_thresholds : CiThresholds = CiThresholds.new,
+    )
       @total_request_count = 0_i64
       @response_count = 0_i64
       @total_response_bytes = 0_i64
@@ -331,9 +340,11 @@ module Cryload
     end
 
     def final_exit_code
-      @mutex.synchronize do
-        @transport_error_count > 0 && @response_count == 0 ? 1 : 0
-      end
+      @mutex.synchronize { ci_threshold_failed_unlocked? ? 1 : 0 }
+    end
+
+    def failure_rate_percent
+      @mutex.synchronize { failure_rate_percent_unlocked }
     end
 
     def json_output
@@ -413,33 +424,64 @@ module Cryload
       end
     end
 
-    private def percentile_request_time(percentile : Float64)
-      @mutex.synchronize do
-        return 0.0 if @total_request_count == 0
+    private def ci_threshold_failed_unlocked? : Bool
+      return true if @transport_error_count > 0 && @response_count == 0
+      return true if @ci_thresholds.fail_on_transport_error && @transport_error_count > 0
+      return true if @ci_thresholds.fail_on_error && (@not_ok_requests > 0 || @transport_error_count > 0)
 
-        rank = (@total_request_count.to_f * (percentile / 100.0)).ceil.to_i64
-        rank = 1_i64 if rank < 1
-        seen = 0_i64
-
-        @latency_histogram.each_with_index do |count, index|
-          next if count == 0
-          seen += count
-          if seen >= rank
-            return index.to_f * HISTOGRAM_BUCKET_SIZE_MS
-          end
-        end
-
-        if seen + @histogram_overflow_count >= rank
-          return HISTOGRAM_MAX_MS.to_f
-        end
-
-        @max_request_time_ms
+      if max_rate = @ci_thresholds.max_fail_rate
+        return true if @total_request_count > 0 && failure_rate_percent_unlocked > max_rate
       end
+
+      if max_p99 = @ci_thresholds.max_p99_ms
+        return true if @total_request_count > 0 && percentile_request_time_unlocked(99.0) > max_p99
+      end
+
+      false
+    end
+
+    private def failure_rate_percent_unlocked : Float64
+      return 0.0 if @total_request_count == 0
+      ((@not_ok_requests + @transport_error_count).to_f / @total_request_count) * 100.0
+    end
+
+    private def percentile_request_time_unlocked(percentile : Float64) : Float64
+      return 0.0 if @total_request_count == 0
+
+      rank = (@total_request_count.to_f * (percentile / 100.0)).ceil.to_i64
+      rank = 1_i64 if rank < 1
+      seen = 0_i64
+
+      @latency_histogram.each_with_index do |count, index|
+        next if count == 0
+        seen += count
+        if seen >= rank
+          return index.to_f * HISTOGRAM_BUCKET_SIZE_MS
+        end
+      end
+
+      if seen + @histogram_overflow_count >= rank
+        return HISTOGRAM_MAX_MS.to_f
+      end
+
+      @max_request_time_ms
+    end
+
+    private def percentile_request_time(percentile : Float64)
+      @mutex.synchronize { percentile_request_time_unlocked(percentile) }
     end
   end
 
-  def self.create_stats(request_number, duration_mode : Bool = false, benchmark_start : Time::Instant = Time.instant, url : String = "", output_format : String = "text", success_status_ranges : Array(Range(Int32, Int32)) = [200..299])
-    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, output_format, success_status_ranges
+  def self.create_stats(
+    request_number,
+    duration_mode : Bool = false,
+    benchmark_start : Time::Instant = Time.instant,
+    url : String = "",
+    output_format : String = "text",
+    success_status_ranges : Array(Range(Int32, Int32)) = [200..299],
+    ci_thresholds : CiThresholds = CiThresholds.new,
+  )
+    @@stats = Stats.new request_number, duration_mode, benchmark_start, url, output_format, success_status_ranges, ci_thresholds
   end
 
   def self.stats

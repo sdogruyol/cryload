@@ -128,6 +128,10 @@ describe "Cryload E2E" do
     output.to_s.should contain("--success-status")
     output.to_s.should contain("--insecure")
     output.to_s.should contain("--version")
+    output.to_s.should contain("--fail-on-error")
+    output.to_s.should contain("--fail-on-transport-error")
+    output.to_s.should contain("--max-fail-rate")
+    output.to_s.should contain("--max-p99")
   end
 
   it "prints version when -V is passed" do
@@ -524,43 +528,30 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     parsed = JSON.parse(output.to_s)
-    parsed["requests"].as_i.should eq(20)
-    parsed["responses"].as_i.should eq(20)
-    parsed["transport_errors"].as_i.should eq(0)
-    parsed["summary"]["request_count"].as_i.should eq(20)
-    parsed["summary"]["response_count"].as_i.should eq(20)
-    parsed["summary"]["transport_error_count"].as_i.should eq(0)
+    parsed["schema_version"].as_s.should eq("v2")
+    parsed["summary"]["requests"].as_i.should eq(20)
+    parsed["summary"]["responses"].as_i.should eq(20)
+    parsed["summary"]["transport_errors"].as_i.should eq(0)
+    parsed["summary"]["failure_rate_percent"].as_f.should eq(0.0)
     parsed["transfer"]["total_bytes"].as_i.should eq(response_body.bytesize * 20)
     parsed["transfer"]["size_per_request_bytes"].as_f.should eq(response_body.bytesize.to_f)
     parsed["transfer"]["bytes_per_second"].as_f.should be > 0.0
-    parsed["latency_ms"]["fastest"].as_f.should be >= 0.0
     parsed["latency_ms"]["min"].as_f.should be >= 0.0
     parsed["latency_ms"]["p10"].as_f.should be >= 0.0
-    parsed["latency_ms"]["p25"].as_f.should be >= 0.0
     parsed["latency_ms"]["p50"].as_f.should be >= 0.0
-    parsed["latency_ms"]["p75"].as_f.should be >= 0.0
-    parsed["latency_ms"]["p90"].as_f.should be >= 0.0
     parsed["latency_ms"]["p95"].as_f.should be >= 0.0
     parsed["latency_ms"]["p99"].as_f.should be >= 0.0
     parsed["latency_ms"]["p999"].as_f.should be >= 0.0
-    parsed["latency_ms"]["slowest"].as_f.should be >= 0.0
-    parsed["latency"]["fastest"].as_f.should be >= 0.0
-    parsed["latency_distribution_ms"]["p10"].as_f.should be >= 0.0
-    parsed["latency_distribution"]["p10"].as_f.should be >= 0.0
-    parsed["latency_distribution_ms"]["p999"].as_f.should be >= 0.0
     parsed["latency_histogram"].as_a.size.should be > 0
     parsed["latency_histogram"][0]["count"].as_i.should be >= 0
-    parsed["status_counts"]["successful"].as_i.should eq(20)
-    parsed["status_counts"]["successful_percent"].as_f.should eq(100.0)
-    parsed["status_counts"]["failed"].as_i.should eq(0)
-    parsed["status_counts"]["failed_percent"].as_f.should eq(0.0)
     parsed["status"]["successful_count"].as_i.should eq(20)
+    parsed["status"]["successful_percent"].as_f.should eq(100.0)
     parsed["status"]["failed_count"].as_i.should eq(0)
-    parsed["success_statuses"][0].as_s.should eq("200-299")
-    parsed["response_status_codes"]["200"].as_i.should eq(20)
-    parsed["status_code_distribution"][0]["code"].as_s.should eq("200")
-    parsed["status_code_distribution"][0]["percent"].as_f.should eq(100.0)
-    parsed["transport_error_percent"].as_f.should eq(0.0)
+    parsed["status"]["failed_percent"].as_f.should eq(0.0)
+    parsed["status"]["transport_error_percent"].as_f.should eq(0.0)
+    parsed["status"]["success_statuses"][0].as_s.should eq("200-299")
+    parsed["status"]["codes"][0]["code"].as_s.should eq("200")
+    parsed["status"]["codes"][0]["percent"].as_f.should eq(100.0)
   end
 
   it "outputs csv with --output-format csv" do
@@ -628,11 +619,11 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     parsed = JSON.parse(output.to_s)
-    parsed["requests"].as_i.should eq(6)
-    parsed["responses"].as_i.should eq(6)
-    parsed["elapsed_seconds"].as_f.should be >= 1.5
-    parsed["elapsed_seconds"].as_f.should be < 2.4
-    parsed["requests_per_second"].as_f.should be >= 2.5
+    parsed["summary"]["requests"].as_i.should eq(6)
+    parsed["summary"]["responses"].as_i.should eq(6)
+    parsed["summary"]["elapsed_seconds"].as_f.should be >= 1.5
+    parsed["summary"]["elapsed_seconds"].as_f.should be < 2.4
+    parsed["summary"]["requests_per_second"].as_f.should be >= 2.5
   end
 
   it "keeps duration mode close to target time with --rate" do
@@ -654,9 +645,9 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     parsed = JSON.parse(output.to_s)
-    parsed["elapsed_seconds"].as_f.should be < 2.2
-    parsed["requests"].as_i.should be >= 35
-    parsed["requests_per_second"].as_f.should be >= 17.0
+    parsed["summary"]["elapsed_seconds"].as_f.should be < 2.2
+    parsed["summary"]["requests"].as_i.should be >= 35
+    parsed["summary"]["requests_per_second"].as_f.should be >= 17.0
   end
 
   it "stops duration mode at the configured deadline without waiting for late responses" do
@@ -679,9 +670,9 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(0)
     parsed = JSON.parse(output.to_s)
-    parsed["elapsed_seconds"].as_f.should be < 1.2
-    parsed["requests"].as_i.should eq(0)
-    parsed["responses"].as_i.should eq(0)
+    parsed["summary"]["elapsed_seconds"].as_f.should be < 1.2
+    parsed["summary"]["requests"].as_i.should eq(0)
+    parsed["summary"]["responses"].as_i.should eq(0)
   end
 
   it "outputs transport errors in json when target is unreachable" do
@@ -691,12 +682,81 @@ describe "Cryload E2E" do
 
     process.exit_code.should eq(1)
     parsed = JSON.parse(output.to_s)
-    parsed["requests"].as_i.should eq(3)
-    parsed["responses"].as_i.should eq(0)
-    parsed["transport_errors"].as_i.should eq(3)
-    parsed["transport_error_percent"].as_f.should eq(100.0)
-    parsed["error_counts"]["Socket::ConnectError"].as_i.should eq(3)
-    parsed["transport_error_distribution"][0]["category"].as_s.should eq("Socket::ConnectError")
-    parsed["transport_error_distribution"][0]["percent"].as_f.should eq(100.0)
+    parsed["summary"]["requests"].as_i.should eq(3)
+    parsed["summary"]["responses"].as_i.should eq(0)
+    parsed["summary"]["transport_errors"].as_i.should eq(3)
+    parsed["status"]["transport_error_percent"].as_f.should eq(100.0)
+    parsed["status"]["transport_errors"][0]["category"].as_s.should eq("Socket::ConnectError")
+    parsed["status"]["transport_errors"][0]["percent"].as_f.should eq(100.0)
+  end
+
+  it "exits with error when --fail-on-error sees HTTP failures" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 404
+      context.response.print "Not Found"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "5", "--fail-on-error", "--output-format", "quiet"], output: output)
+
+    server.close
+
+    process.exit_code.should eq(1)
+  end
+
+  it "passes when --fail-on-error sees only successful responses" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "5", "--fail-on-error", "--output-format", "quiet"], output: output)
+
+    server.close
+
+    process.exit_code.should eq(0)
+  end
+
+  it "exits with error when --max-fail-rate is exceeded" do
+    server = HTTP::Server.new do |context|
+      context.response.status_code = 404
+      context.response.print "Not Found"
+    end
+
+    address = server.bind_unused_port
+    port = address.port
+
+    spawn { server.listen }
+    sleep 100.milliseconds
+
+    output = IO::Memory.new
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "4", "--max-fail-rate", "25", "--output-format", "quiet"], output: output)
+
+    server.close
+
+    process.exit_code.should eq(1)
+  end
+
+  it "exits with error on invalid max fail rate" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--max-fail-rate", "150"], output: output, error: error)
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Max fail rate must be between 0 and 100")
+    process.exit_code.should eq(1)
   end
 end

@@ -131,6 +131,61 @@ describe Cryload::Stats do
     stats.final_exit_code.should eq(1)
   end
 
+  it "fails exit code when fail-on-error threshold is enabled" do
+    stats = Cryload::Stats.new(10, ci_thresholds: Cryload::CiThresholds.new(fail_on_error: true))
+
+    stats.record_response(10.0, 404)
+
+    stats.final_exit_code.should eq(1)
+  end
+
+  it "passes exit code for HTTP failures without fail-on-error" do
+    stats = Cryload::Stats.new(10)
+
+    stats.record_response(10.0, 404)
+
+    stats.final_exit_code.should eq(0)
+  end
+
+  it "fails exit code when fail-on-transport-error is enabled" do
+    stats = Cryload::Stats.new(5, ci_thresholds: Cryload::CiThresholds.new(fail_on_transport_error: true))
+
+    stats.record_error(5.0, "Socket::ConnectError")
+    stats.record_response(15.0, 200)
+
+    stats.final_exit_code.should eq(1)
+  end
+
+  it "fails exit code when max fail rate is exceeded" do
+    stats = Cryload::Stats.new(10, ci_thresholds: Cryload::CiThresholds.new(max_fail_rate: 10.0))
+
+    stats.record_response(10.0, 200)
+    stats.record_response(20.0, 404)
+
+    stats.failure_rate_percent.should eq(50.0)
+    stats.final_exit_code.should eq(1)
+  end
+
+  it "passes exit code when max fail rate is not exceeded" do
+    stats = Cryload::Stats.new(10, ci_thresholds: Cryload::CiThresholds.new(max_fail_rate: 60.0))
+
+    stats.record_response(10.0, 200)
+    stats.record_response(20.0, 404)
+
+    stats.final_exit_code.should eq(0)
+  end
+
+  it "fails exit code when max p99 latency is exceeded" do
+    stats = Cryload::Stats.new(100, ci_thresholds: Cryload::CiThresholds.new(max_p99_ms: 50.0))
+
+    (1..100).each do |latency_ms|
+      stats.record_response(latency_ms.to_f, 200)
+    end
+
+    stats.p99_request_time.should eq(99.0)
+    stats.final_exit_code.should eq(1)
+  end
+
   it "uses actual elapsed time for throughput calculations" do
     stats = Cryload::Stats.new(10, duration_mode: true, benchmark_start: Time.instant - 2.seconds)
 
