@@ -485,7 +485,7 @@ module Cryload
             percent: percentage(count, total_responses),
           }
         end
-        .sort_by { |entry| {-entry[:count], entry[:label].to_i} }
+        .sort_by! { |entry| {-entry[:count], entry[:label].to_i} }
     end
 
     private def self.build_error_distribution(error_counts : Hash(String, Int64), total_errors : Int64)
@@ -497,7 +497,7 @@ module Cryload
             percent: percentage(count, total_errors),
           }
         end
-        .sort_by { |entry| {-entry[:count], entry[:label]} }
+        .sort_by! { |entry| {-entry[:count], entry[:label]} }
     end
   end
 end

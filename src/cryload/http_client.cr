@@ -23,24 +23,28 @@ module Cryload
   end
 
   def self.create_direct_http_client(uri, timeout_seconds : Int32? = nil, insecure : Bool = false)
+    host = uri.host || raise ArgumentError.new("URI host is required")
     port = effective_port(uri)
     tls_context = tls_context_for(uri, insecure)
-    client = HTTP::Client.new uri.host.not_nil!, port: port, tls: tls_context
+    client = HTTP::Client.new host, port: port, tls: tls_context
     apply_timeouts(client, timeout_seconds)
     client
   end
 
   def self.create_http_proxy_client(uri, proxy : URI, timeout_seconds : Int32? = nil, insecure : Bool = false)
+    proxy_host = proxy.host || raise ArgumentError.new("Proxy host is required")
     proxy_port = effective_port(proxy)
-    client = HTTP::Client.new proxy.host.not_nil!, port: proxy_port, tls: tls_context_for(proxy, insecure)
+    client = HTTP::Client.new proxy_host, port: proxy_port, tls: tls_context_for(proxy, insecure)
     apply_timeouts(client, timeout_seconds)
     client
   end
 
   def self.create_https_proxy_client(uri, proxy : URI, timeout_seconds : Int32? = nil, insecure : Bool = false)
+    host = uri.host || raise ArgumentError.new("URI host is required")
     port = effective_port(uri)
+    proxy_host = proxy.host || raise ArgumentError.new("Proxy host is required")
     proxy_port = effective_port(proxy)
-    socket = TCPSocket.new(proxy.host.not_nil!, proxy_port)
+    socket = TCPSocket.new(proxy_host, proxy_port)
     socket << connect_request(uri, port, proxy)
 
     status_code = read_proxy_connect_status(socket)
@@ -58,10 +62,10 @@ module Cryload
       socket,
       context: tls_context,
       sync_close: true,
-      hostname: uri.host.not_nil!,
+      hostname: host,
     )
 
-    client = HTTP::Client.new(ssl_socket, host: uri.host.not_nil!, port: port)
+    client = HTTP::Client.new(ssl_socket, host: host, port: port)
     apply_timeouts(client, timeout_seconds)
     client
   end
@@ -76,7 +80,7 @@ module Cryload
     status_code = parts[1].to_i?
     raise IO::Error.new("Proxy CONNECT failed: #{line.strip}") unless status_code
 
-    while (header_line = socket.gets)
+    while header_line = socket.gets
       break if header_line == "\r\n" || header_line.strip.empty?
     end
 
@@ -84,7 +88,7 @@ module Cryload
   end
 
   def self.connect_request(uri : URI, port : Int32, proxy : URI) : String
-    host = uri.host.not_nil!
+    host = uri.host || raise ArgumentError.new("URI host is required")
     request = String.build do |io|
       io << "CONNECT #{host}:#{port} HTTP/1.1\r\n"
       io << "Host: #{host}:#{port}\r\n"

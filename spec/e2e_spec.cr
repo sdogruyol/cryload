@@ -16,7 +16,7 @@ describe "Cryload E2E" do
     address = server.bind_unused_port
     port = address.port
 
-    server_task = spawn do
+    spawn do
       server.listen
     end
 
@@ -865,7 +865,7 @@ describe "Cryload E2E" do
     server.close
 
     paths.size.should eq(5)
-    paths.each { |path| path.should_not eq("/") }
+    paths.each(&.should_not(eq("/")))
     paths.uniq.size.should eq(5)
     output.to_s.should contain("Successful: 5")
   end

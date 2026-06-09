@@ -1,7 +1,7 @@
 module Cryload
   struct CiThresholds
-    property fail_on_error : Bool
-    property fail_on_transport_error : Bool
+    property? fail_on_error : Bool
+    property? fail_on_transport_error : Bool
     property max_fail_rate : Float64?
     property max_p99_ms : Float64?
 

@@ -24,7 +24,7 @@ module MockProxy
 
     lines_mutex.synchronize { request_lines << request_line.strip }
 
-    while (line = socket.gets)
+    while line = socket.gets
       break if line == "\r\n" || line.strip.empty?
     end
 

@@ -84,7 +84,7 @@ describe Cryload::Stats do
     bins.sum { |bin| bin[:count] }.should eq(100)
     bins.first[:start_ms].should be_close(1.0, 0.01)
     bins.last[:end_ms].should be_close(100.0, 0.01)
-    bins.each { |bin| bin[:count].should eq(20) }
+    bins.each(&.[:count].should(eq(20)))
   end
 
   it "tracks transport errors without losing run progress" do

@@ -41,7 +41,7 @@ describe Cryload::Logger do
     values[2].should eq("2")
     values[3].should eq("2")
     values[4].should eq("0")
-    values[headers.index("latency_p95_ms").not_nil!].should eq("25.0")
-    values[headers.index("status_successful_count").not_nil!].should eq("2")
+    values[headers.index!("latency_p95_ms")].should eq("25.0")
+    values[headers.index!("status_successful_count")].should eq("2")
   end
 end

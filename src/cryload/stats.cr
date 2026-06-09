@@ -101,7 +101,7 @@ module Cryload
       end
 
       private def success_status?(status_code : Int32)
-        @success_status_ranges.any? { |status_range| status_range.includes?(status_code) }
+        @success_status_ranges.any?(&.includes?(status_code))
       end
     end
 
@@ -441,18 +441,37 @@ module Cryload
     end
 
     private def ci_threshold_failed_unlocked? : Bool
-      return true if @transport_error_count > 0 && @response_count == 0
-      return true if @ci_thresholds.fail_on_transport_error && @transport_error_count > 0
-      return true if @ci_thresholds.fail_on_error && (@not_ok_requests > 0 || @transport_error_count > 0)
+      return true if transport_only_failure_unlocked?
+      return true if fail_on_transport_error_threshold_unlocked?
+      return true if fail_on_error_threshold_unlocked?
+      return true if max_fail_rate_threshold_unlocked?
+      return true if max_p99_threshold_unlocked?
+      false
+    end
 
+    private def transport_only_failure_unlocked? : Bool
+      @transport_error_count > 0 && @response_count == 0
+    end
+
+    private def fail_on_transport_error_threshold_unlocked? : Bool
+      @ci_thresholds.fail_on_transport_error? && @transport_error_count > 0
+    end
+
+    private def fail_on_error_threshold_unlocked? : Bool
+      @ci_thresholds.fail_on_error? && (@not_ok_requests > 0 || @transport_error_count > 0)
+    end
+
+    private def max_fail_rate_threshold_unlocked? : Bool
       if max_rate = @ci_thresholds.max_fail_rate
-        return true if @total_request_count > 0 && failure_rate_percent_unlocked > max_rate
+        return @total_request_count > 0 && failure_rate_percent_unlocked > max_rate
       end
+      false
+    end
 
+    private def max_p99_threshold_unlocked? : Bool
       if max_p99 = @ci_thresholds.max_p99_ms
-        return true if @total_request_count > 0 && percentile_request_time_unlocked(99.0) > max_p99
+        return @total_request_count > 0 && percentile_request_time_unlocked(99.0) > max_p99
       end
-
       false
     end
 
@@ -502,6 +521,8 @@ module Cryload
   end
 
   def self.stats
-    @@stats.not_nil!
+    stats = @@stats
+    raise "Stats not initialized" unless stats
+    stats
   end
 end

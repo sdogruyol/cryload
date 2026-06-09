@@ -6,7 +6,7 @@ CRYLOAD_BIN  = File.join(PROJECT_ROOT, "bin", "cryload")
 
 def cryload_sources_mtime : Time
   paths = Dir.glob(File.join(PROJECT_ROOT, "src", "**", "*.cr")) + [File.join(PROJECT_ROOT, "shard.yml")]
-  paths.map { |path| File.info(path).modification_time }.max
+  paths.max_of { |path| File.info(path).modification_time }
 end
 
 needs_build = !File.exists?(CRYLOAD_BIN) ||

@@ -33,7 +33,7 @@ module Cryload
       (@end_time - @start_time).total_seconds * 1000.0
     end
 
-    def is_ok?
+    def ok?
       (200..299).includes?(@status_code)
     end
 

@@ -61,7 +61,7 @@ module Cryload
 
     def spawn_duration_worker(stats_channel, done_channel, rate_limiter : RateLimiter?)
       spawn do
-        deadline = Time.instant + @duration_seconds.not_nil!.seconds
+        deadline = Time.instant + duration_seconds.seconds
         local_batch = Stats::Batch.new(@success_status_ranges)
         shared_client = client_for(@urls.first) unless client_per_request?
 
@@ -72,7 +72,10 @@ module Cryload
             create_request(client, uri, local_batch)
             client.close
           else
-            create_request(shared_client.not_nil!, uri, local_batch)
+            unless client = shared_client
+              raise "Shared HTTP client is not initialized"
+            end
+            create_request(client, uri, local_batch)
           end
           local_batch = flush_batch stats_channel, local_batch
         end
@@ -97,7 +100,10 @@ module Cryload
             create_request(client, uri, local_batch)
             client.close
           else
-            create_request(shared_client.not_nil!, uri, local_batch)
+            unless client = shared_client
+              raise "Shared HTTP client is not initialized"
+            end
+            create_request(client, uri, local_batch)
           end
           local_batch = flush_batch_if_needed stats_channel, local_batch
         end
@@ -128,8 +134,11 @@ module Cryload
                   client.close
                 end
               else
+                unless client = local_client
+                  raise "Shared HTTP client is not initialized"
+                end
                 begin
-                  Request.new local_client.not_nil!, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
+                  Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
                 rescue
                 end
               end
@@ -146,7 +155,7 @@ module Cryload
     end
 
     private def next_uri : URI
-      base = @urls[(@uri_index.add(1) % @urls.size).to_i].not_nil!
+      base = @urls[(@uri_index.add(1) % @urls.size).to_i]
       apply_random_path(base)
     end
 
@@ -164,6 +173,10 @@ module Cryload
 
     private def client_per_request? : Bool
       @urls.size > 1 || @random_path
+    end
+
+    private def duration_seconds : Int32
+      @duration_seconds || raise "Duration seconds not set"
     end
 
     private def requests_per_worker(worker_index, total_workers)
@@ -222,7 +235,7 @@ module Cryload
     end
 
     def spawn_receive_loop_duration(stats_channel, done_channel, worker_count)
-      deadline = Cryload.stats.benchmark_start + @duration_seconds.not_nil!.seconds
+      deadline = Cryload.stats.benchmark_start + duration_seconds.seconds
       done_count = 0
       draining = false
       drain_deadline = Time.instant
@@ -286,21 +299,23 @@ module Cryload
 
     private def create_request(client, uri, local_batch : Stats::Batch)
       started_at = Time.instant
-      request = Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
-      local_batch.record_response request.time_taken, request.status_code, request.response_bytes
-    rescue ex : Exception
-      elapsed_ms = (Time.instant - started_at.not_nil!).total_seconds * 1000.0
-      local_batch.record_error elapsed_ms, transport_error_category(ex)
-      if ex.is_a?(Socket::Error | IO::Error | OpenSSL::SSL::Error)
-        host = uri.host || "localhost"
-        port = Cryload.effective_port(uri)
-        msg = ex.message.to_s
-        @@connection_error_mutex.synchronize do
-          unless @@connection_error_printed
-            STDERR.puts "Connection failed: Could not reach #{host}:#{port}"
-            STDERR.puts "  → #{msg}"
-            STDERR.puts "  → Continuing and counting transport errors in the final report."
-            @@connection_error_printed = true
+      begin
+        request = Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
+        local_batch.record_response request.time_taken, request.status_code, request.response_bytes
+      rescue ex : Exception
+        elapsed_ms = (Time.instant - started_at).total_seconds * 1000.0
+        local_batch.record_error elapsed_ms, transport_error_category(ex)
+        if ex.is_a?(Socket::Error | IO::Error | OpenSSL::SSL::Error)
+          host = uri.host || "localhost"
+          port = Cryload.effective_port(uri)
+          msg = ex.message.to_s
+          @@connection_error_mutex.synchronize do
+            unless @@connection_error_printed
+              STDERR.puts "Connection failed: Could not reach #{host}:#{port}"
+              STDERR.puts "  → #{msg}"
+              STDERR.puts "  → Continuing and counting transport errors in the final report."
+              @@connection_error_printed = true
+            end
           end
         end
       end
