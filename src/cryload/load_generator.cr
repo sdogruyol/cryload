@@ -2,7 +2,7 @@ require "random"
 
 module Cryload
   class LoadGenerator
-    BATCH_FLUSH_SIZE = 250_i64
+    BATCH_FLUSH_SIZE     = 250_i64
     DURATION_DRAIN_GRACE = 500.milliseconds
     @@connection_error_printed = false
     @@connection_error_mutex = Mutex.new

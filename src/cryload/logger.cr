@@ -281,17 +281,17 @@ module Cryload
       average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms,
       p10_ms, p25_ms, p50_ms, p75_ms, p90_ms, p95_ms, p99_ms, p999_ms, success_percent, failure_percent,
       transport_error_percent, success_status_ranges, status_distribution, transport_error_distribution,
-      histogram_bins
+      histogram_bins,
     )
       {
-        "url"            => s.url,
-        "duration_mode"  => s.duration_mode,
-        "summary"        => {
-          "requests"            => total,
-          "responses"           => response_count,
-          "transport_errors"    => error_count,
-          "elapsed_seconds"     => elapsed,
-          "requests_per_second" => rps,
+        "url"           => s.url,
+        "duration_mode" => s.duration_mode,
+        "summary"       => {
+          "requests"             => total,
+          "responses"            => response_count,
+          "transport_errors"     => error_count,
+          "elapsed_seconds"      => elapsed,
+          "requests_per_second"  => rps,
           "failure_rate_percent" => s.failure_rate_percent.round(2),
         },
         "transfer" => {
@@ -322,13 +322,13 @@ module Cryload
           }
         end,
         "status" => {
-          "success_statuses"       => success_status_ranges,
-          "successful_count"       => s.ok_requests,
-          "successful_percent"     => success_percent,
-          "failed_count"           => s.not_ok_requests,
-          "failed_percent"         => failure_percent,
+          "success_statuses"        => success_status_ranges,
+          "successful_count"        => s.ok_requests,
+          "successful_percent"      => success_percent,
+          "failed_count"            => s.not_ok_requests,
+          "failed_percent"          => failure_percent,
           "transport_error_percent" => transport_error_percent,
-          "codes"                  => status_distribution.map do |entry|
+          "codes"                   => status_distribution.map do |entry|
             {
               "code"    => entry[:label],
               "count"   => entry[:count],
@@ -351,7 +351,7 @@ module Cryload
       average_bytes_per_response, bytes_per_second, avg_ms, min_ms, stdev_ms, max_ms,
       p50_ms, p90_ms, p95_ms, p99_ms, p999_ms, successful_count, failed_count,
       successful_percent, failed_percent, transport_error_percent, success_status_ranges,
-      status_distribution, transport_error_distribution, url : String, duration_mode : Bool
+      status_distribution, transport_error_distribution, url : String, duration_mode : Bool,
     )
       headers = [
         "url",

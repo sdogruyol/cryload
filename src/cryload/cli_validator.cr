@@ -3,7 +3,7 @@ module Cryload
     module Validator
       extend self
 
-      VALID_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+      VALID_METHODS        = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
       VALID_OUTPUT_FORMATS = {"text", "json", "csv", "quiet"}
 
       def validate(options : Hash(Symbol, String | Int32 | Bool | Float64 | Array(String)), &on_ready : String ->)

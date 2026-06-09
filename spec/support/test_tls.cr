@@ -3,7 +3,7 @@ require "openssl"
 
 module TestTls
   CERT = File.join(Dir.tempdir, "cryload-spec-cert.pem")
-  KEY = File.join(Dir.tempdir, "cryload-spec-key.pem")
+  KEY  = File.join(Dir.tempdir, "cryload-spec-key.pem")
 
   unless File.exists?(CERT) && File.exists?(KEY)
     status = Process.run(
