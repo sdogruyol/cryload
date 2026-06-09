@@ -5,3 +5,5 @@
 .DS_Store
 .shards
 /bin/
+lib/
+/shard.lock

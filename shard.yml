@@ -4,6 +4,11 @@ description: "Cross-platform HTTP load testing CLI: a modern ab/wrk alternative 
 
 version: 4.0.0
 
+development_dependencies:
+  ameba:
+    github: crystal-ameba/ameba
+    branch: master
+
 authors:
   - Serdar Dogruyol <dogruyolserdar@gmail.com>
 
