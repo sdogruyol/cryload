@@ -13,7 +13,7 @@ module Cryload
         return body if body
 
         body_file = options[:body_file]?.try(&.as(String))
-        return nil unless body_file
+        return unless body_file
 
         File.read(body_file)
       end
@@ -63,7 +63,7 @@ module Cryload
 
       def resolve_proxy(options : Hash(Symbol, String | Int32 | Bool | Float64 | Array(String))) : URI?
         raw = options[:proxy]?.try(&.as(String))
-        return nil unless raw
+        return unless raw
         URI.parse(raw)
       end
 

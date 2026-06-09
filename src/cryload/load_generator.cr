@@ -243,42 +243,70 @@ module Cryload
 
       until finished
         if draining
-          remaining = drain_deadline - Time.instant
-          break unless remaining.positive?
-
-          select
-          when batch = stats_channel.receive
-            Cryload.stats.merge_batch batch
-          when done_channel.receive
-            done_count += 1
-            finished = true if done_count >= worker_count
-          when timeout(remaining)
-            finished = true
-          end
+          finished, done_count = duration_drain_step(
+            stats_channel, done_channel, drain_deadline, done_count, worker_count, finished
+          )
         else
-          remaining = deadline - Time.instant
-          if remaining.positive?
-            select
-            when batch = stats_channel.receive
-              Cryload.stats.merge_batch batch
-              ShutdownCoordinator.update_during_duration
-            when done_channel.receive
-              done_count += 1
-              finished = true if done_count >= worker_count
-            when timeout(remaining)
-              Cryload.stats.mark_benchmark_end
-              draining = true
-              drain_deadline = Time.instant + DURATION_DRAIN_GRACE
-            end
-          else
-            Cryload.stats.mark_benchmark_end
-            draining = true
-            drain_deadline = Time.instant + DURATION_DRAIN_GRACE
-          end
+          draining, drain_deadline, finished, done_count = duration_active_step(
+            stats_channel, done_channel, deadline, done_count, worker_count, draining, drain_deadline, finished
+          )
         end
       end
 
       ShutdownCoordinator.finish
+    end
+
+    private def duration_drain_step(stats_channel, done_channel, drain_deadline, done_count, worker_count, finished)
+      remaining = drain_deadline - Time.instant
+      return {true, done_count} unless remaining.positive?
+
+      select
+      when batch = stats_channel.receive
+        Cryload.stats.merge_batch batch
+      when done_channel.receive
+        done_count += 1
+        finished = true if all_workers_done?(done_count, worker_count)
+      when timeout(remaining)
+        finished = true
+      end
+
+      {finished, done_count}
+    end
+
+    private def duration_active_step(
+      stats_channel,
+      done_channel,
+      deadline,
+      done_count,
+      worker_count,
+      draining,
+      drain_deadline,
+      finished,
+    )
+      remaining = deadline - Time.instant
+      return begin_duration_drain(done_count, finished) unless remaining.positive?
+
+      select
+      when batch = stats_channel.receive
+        Cryload.stats.merge_batch batch
+        ShutdownCoordinator.update_during_duration
+      when done_channel.receive
+        done_count += 1
+        finished = true if all_workers_done?(done_count, worker_count)
+      when timeout(remaining)
+        return begin_duration_drain(done_count, finished)
+      end
+
+      {draining, drain_deadline, finished, done_count}
+    end
+
+    private def begin_duration_drain(done_count, finished)
+      Cryload.stats.mark_benchmark_end
+      {true, Time.instant + DURATION_DRAIN_GRACE, finished, done_count}
+    end
+
+    private def all_workers_done?(done_count, worker_count)
+      done_count >= worker_count
     end
 
     private def parse_uri(url : String)

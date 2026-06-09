@@ -9,7 +9,7 @@ describe Cryload do
         http://localhost:3000
 
         https://example.com/api
-      URLS
+        URLS
 
       urls = Cryload.load_urls_from_file(path)
       urls.size.should eq(2)
