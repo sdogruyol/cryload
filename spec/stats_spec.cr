@@ -46,17 +46,17 @@ describe Cryload::Stats do
     stats.not_ok_requests.should eq(1)
   end
 
-  it "calculates p95 and p99 from histogram" do
+  it "calculates p95 and p99 from histogram within 1% relative precision" do
     stats = Cryload::Stats.new(100)
 
     (1..100).each do |latency_ms|
       stats.record_response(latency_ms.to_f, 200)
     end
 
-    stats.p50_request_time.should eq(50.0)
-    stats.p90_request_time.should eq(90.0)
-    stats.p95_request_time.should eq(95.0)
-    stats.p99_request_time.should eq(99.0)
+    stats.p50_request_time.should be_close(50.0, 0.5)
+    stats.p90_request_time.should be_close(90.0, 0.9)
+    stats.p95_request_time.should be_close(95.0, 0.95)
+    stats.p99_request_time.should be_close(99.0, 0.99)
     stats.p999_request_time.should eq(100.0)
   end
 
@@ -195,7 +195,7 @@ describe Cryload::Stats do
       stats.record_response(latency_ms.to_f, 200)
     end
 
-    stats.p99_request_time.should eq(99.0)
+    stats.p99_request_time.should be_close(99.0, 0.99)
     stats.final_exit_code.should eq(1)
   end
 

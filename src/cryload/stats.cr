@@ -1,9 +1,25 @@
 module Cryload
   # Stats holder for the benchmark
   class Stats
-    HISTOGRAM_BUCKET_SIZE_MS =    0.1
-    HISTOGRAM_MAX_MS         = 60_000
-    HISTOGRAM_BUCKET_COUNT   = (HISTOGRAM_MAX_MS / HISTOGRAM_BUCKET_SIZE_MS).to_i + 1
+    # HDR-style logarithmic histogram: ~1% relative precision from 1µs to 1h
+    # in a few thousand buckets, instead of a dense linear bucket array.
+    HISTOGRAM_MIN_MS       =       0.001
+    HISTOGRAM_MAX_MS       = 3_600_000.0
+    HISTOGRAM_GROWTH       =        1.01
+    HISTOGRAM_LOG_GROWTH   = Math.log(HISTOGRAM_GROWTH)
+    HISTOGRAM_BUCKET_COUNT = (Math.log(HISTOGRAM_MAX_MS / HISTOGRAM_MIN_MS) / HISTOGRAM_LOG_GROWTH).ceil.to_i + 1
+
+    def self.histogram_bucket_index(value_ms : Float64) : Int32
+      return 0 if value_ms <= HISTOGRAM_MIN_MS
+
+      index = (Math.log(value_ms / HISTOGRAM_MIN_MS) / HISTOGRAM_LOG_GROWTH).floor.to_i
+      {index, HISTOGRAM_BUCKET_COUNT - 1}.min
+    end
+
+    # Geometric midpoint of the bucket, the best estimate for values in it.
+    def self.histogram_bucket_value(index : Int32) : Float64
+      HISTOGRAM_MIN_MS * (HISTOGRAM_GROWTH ** (index + 0.5))
+    end
 
     # Worker-local stats batch flushed periodically to the global collector.
     class Batch
@@ -20,7 +36,6 @@ module Cryload
       @mean_latency_ms : Float64
       @m2_latency_ms : Float64
       @latency_buckets : Hash(Int32, Int64)
-      @histogram_overflow_count : Int64
       @status_code_counts : Hash(Int32, Int64)
       @error_counts : Hash(String, Int64)
 
@@ -36,7 +51,6 @@ module Cryload
       getter :mean_latency_ms
       getter :m2_latency_ms
       getter :latency_buckets
-      getter :histogram_overflow_count
       getter :status_code_counts
       getter :error_counts
 
@@ -53,7 +67,6 @@ module Cryload
         @mean_latency_ms = 0.0
         @m2_latency_ms = 0.0
         @latency_buckets = Hash(Int32, Int64).new(0_i64)
-        @histogram_overflow_count = 0_i64
         @status_code_counts = Hash(Int32, Int64).new(0_i64)
         @error_counts = Hash(String, Int64).new(0_i64)
       end
@@ -93,12 +106,7 @@ module Cryload
         delta2 = time_taken_ms - @mean_latency_ms
         @m2_latency_ms += delta * delta2
 
-        bucket_index = (time_taken_ms / HISTOGRAM_BUCKET_SIZE_MS).floor.to_i
-        if bucket_index < HISTOGRAM_BUCKET_COUNT
-          @latency_buckets[bucket_index] += 1
-        else
-          @histogram_overflow_count += 1
-        end
+        @latency_buckets[Stats.histogram_bucket_index(time_taken_ms)] += 1
       end
 
       private def success_status?(status_code : Int32)
@@ -106,7 +114,6 @@ module Cryload
       end
     end
 
-    @ongoing_check_number : Int32
     @total_request_count : Int64
     @response_count : Int64
     @total_response_bytes : Int64
@@ -119,14 +126,12 @@ module Cryload
     @mean_latency_ms : Float64
     @m2_latency_ms : Float64
     @latency_histogram : Array(Int64)
-    @histogram_overflow_count : Int64
     @status_code_counts : Hash(Int32, Int64)
     @error_counts : Hash(String, Int64)
     @mutex : Mutex
     @benchmark_end : Time::Instant?
 
     getter :request_number
-    getter :ongoing_check_number
     getter :duration_mode
     getter :benchmark_start
     getter :url
@@ -159,11 +164,9 @@ module Cryload
       @mean_latency_ms = 0.0
       @m2_latency_ms = 0.0
       @latency_histogram = Array(Int64).new(HISTOGRAM_BUCKET_COUNT, 0_i64)
-      @histogram_overflow_count = 0_i64
       @status_code_counts = Hash(Int32, Int64).new(0_i64)
       @error_counts = Hash(String, Int64).new(0_i64)
       @mutex = Mutex.new
-      @ongoing_check_number = @duration_mode ? 100 : {@request_number // 10, 1}.max
     end
 
     def min_request_time
@@ -307,7 +310,7 @@ module Cryload
       @mutex.synchronize do
         return [] of NamedTuple(start_ms: Float64, end_ms: Float64, count: Int64, percent: Float64) if @response_count == 0
 
-        if (@max_request_time_ms - @min_request_time_ms) < HISTOGRAM_BUCKET_SIZE_MS
+        if Stats.histogram_bucket_index(@min_request_time_ms) == Stats.histogram_bucket_index(@max_request_time_ms)
           return [{
             start_ms: @min_request_time_ms.round(2),
             end_ms:   @max_request_time_ms.round(2),
@@ -323,14 +326,12 @@ module Cryload
         @latency_histogram.each_with_index do |count, index|
           next if count == 0
 
-          latency_ms = index.to_f * HISTOGRAM_BUCKET_SIZE_MS
+          latency_ms = Stats.histogram_bucket_value(index)
           bin_index = (((latency_ms - @min_request_time_ms) / span_ms) * effective_bin_count).floor.to_i
           bin_index = 0 if bin_index < 0
           bin_index = effective_bin_count - 1 if bin_index >= effective_bin_count
           counts[bin_index] += count
         end
-
-        counts[effective_bin_count - 1] += @histogram_overflow_count
 
         bins = [] of NamedTuple(start_ms: Float64, end_ms: Float64, count: Int64, percent: Float64)
         effective_bin_count.times do |index|
@@ -433,7 +434,6 @@ module Cryload
       batch.latency_buckets.each do |bucket_index, count|
         @latency_histogram[bucket_index] += count
       end
-      @histogram_overflow_count += batch.histogram_overflow_count
 
       batch.status_code_counts.each do |status_code, count|
         @status_code_counts[status_code] += count
@@ -494,12 +494,8 @@ module Cryload
         next if count == 0
         seen += count
         if seen >= rank
-          return index.to_f * HISTOGRAM_BUCKET_SIZE_MS
+          return Stats.histogram_bucket_value(index).clamp(@min_request_time_ms, @max_request_time_ms)
         end
-      end
-
-      if seen + @histogram_overflow_count >= rank
-        return HISTOGRAM_MAX_MS.to_f
       end
 
       @max_request_time_ms

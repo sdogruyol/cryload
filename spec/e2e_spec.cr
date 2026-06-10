@@ -608,7 +608,7 @@ describe "Cryload E2E" do
     process.exit_code.should eq(0)
     lines = output.to_s.lines.map(&.strip).reject(&.empty?)
     lines.size.should eq(2)
-    lines[0].should contain("url,duration_mode,requests,responses,transport_errors,elapsed_seconds,requests_per_second,transfer_total_bytes,transfer_size_per_request_bytes,transfer_bytes_per_second,latency_avg_ms,latency_fastest_ms,latency_min_ms,latency_stdev_ms,latency_slowest_ms,latency_max_ms")
+    lines[0].should contain("url,duration_mode,requests,responses,transport_errors,elapsed_seconds,requests_per_second,transfer_total_bytes,transfer_size_per_request_bytes,transfer_bytes_per_second,latency_avg_ms,latency_min_ms,latency_stdev_ms,latency_max_ms")
     lines[1].should contain(",25,5.0,")
   end
 
@@ -684,8 +684,10 @@ describe "Cryload E2E" do
   end
 
   it "stops duration mode at the configured deadline without waiting for late responses" do
+    # Response must arrive well after the drain window (deadline + 500ms)
+    # closes, otherwise this test races with the drain timer.
     server = HTTP::Server.new do |context|
-      sleep 1500.milliseconds
+      sleep 2500.milliseconds
       context.response.status_code = 200
       context.response.print "OK"
     end

@@ -5,6 +5,7 @@ module Cryload
     BATCH_FLUSH_SIZE     = 250_i64
     BATCH_FLUSH_INTERVAL = 1.second
     DURATION_DRAIN_GRACE = 500.milliseconds
+    PROGRESS_INTERVAL    = 1.second
     @@connection_error_printed = false
     @@connection_error_mutex = Mutex.new
 
@@ -41,6 +42,7 @@ module Cryload
       Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @output_format, @success_status_ranges, @ci_thresholds, @progress
       Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count, @rate_limit, @warmup_seconds, @disable_keepalive
       run_warmup worker_count if @warmup_seconds > 0
+      spawn_progress_ticker
 
       request_channel, done_channel, worker_count = generate_request_channel worker_count
       spawn_receive_loop request_channel, done_channel, worker_count
@@ -197,6 +199,20 @@ module Cryload
       @rate_limit.try { |rate_limit| RateLimiter.new(rate_limit) }
     end
 
+    # Time-based progress: a ticker fiber refreshes the line once per second,
+    # independent of how often worker batches arrive. The process exits via
+    # ShutdownCoordinator.finish, which stops the ticker with it.
+    private def spawn_progress_ticker
+      return unless Cryload.stats.progress_enabled && Cryload.stats.text_output?
+
+      spawn do
+        loop do
+          sleep PROGRESS_INTERVAL
+          Logger.log_progress
+        end
+      end
+    end
+
     private def acquire_rate_slot(rate_limiter : RateLimiter?, deadline : Time::Instant? = nil) : Bool
       return rate_limiter.acquire(deadline) if rate_limiter
       return Time.instant < deadline if deadline
@@ -297,7 +313,6 @@ module Cryload
       select
       when batch = stats_channel.receive
         Cryload.stats.merge_batch batch
-        ShutdownCoordinator.update_during_duration
       when done_channel.receive
         done_count += 1
         finished = true if all_workers_done?(done_count, worker_count)
