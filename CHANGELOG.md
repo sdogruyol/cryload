@@ -1,6 +1,8 @@
 # Unreleased
 
 - **Load testing** — Added `--disable-keepalive` to open a fresh connection per request (sends `Connection: close`), so connection setup cost is part of the measured latency
+- **Request Ergonomics** — Added `--body-stdin` to read the request body from standard input (pipe-friendly)
+- **Refactor** — CLI options now use a typed `Cli::Options` class instead of a union-typed Hash with casts; ARGV is parsed once instead of twice
 - **CLI** — Live progress is now time-based: a ticker refreshes the line every second regardless of throughput, so slow and rate-limited runs stay visible
 - **Performance** — Latency histogram now uses HDR-style logarithmic buckets (~1% relative precision from 1µs to 1h) instead of a dense linear array, cutting memory from ~4.8 MB to ~18 KB; reported percentiles are accurate within 1%
 - **Breaking (CSV)** — Removed duplicate `latency_fastest_ms` and `latency_slowest_ms` columns; use `latency_min_ms` and `latency_max_ms`
