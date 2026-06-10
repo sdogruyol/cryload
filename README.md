@@ -129,6 +129,7 @@ cryload <url> [options]
 | `--timeout` | Client connect/read timeout in seconds |
 | `-q`, `--rate` | Total request rate limit in requests/sec |
 | `-L`, `--follow-redirects` | Follow HTTP redirects up to 5 hops |
+| `--disable-keepalive` | Open a new connection for every request (sends `Connection: close`) |
 | `--output-format` | Output format: `text`, `json`, `csv`, `quiet` |
 | `--success-status` | Treat specific status codes/ranges as successful |
 | `--insecure` | Accept invalid TLS certificates for HTTPS |
@@ -230,6 +231,11 @@ Cache-busting random path on each request
 cryload http://localhost:3000/api -n 500 --random-path
 ```
 
+Measure connection setup cost (no keep-alive)
+```bash
+cryload http://localhost:3000/api -n 1000 --disable-keepalive
+```
+
 Follow redirects
 ```bash
 cryload http://localhost:3000/redirect -n 100 -L
@@ -279,6 +285,7 @@ Preparing to make it CRY for 10 seconds with 10 connections!
 Running load test @ http://127.0.0.1:3000
 Mode: duration (10s)
 Connections: 10
+Keep-alive: enabled
 Rate limit: unlimited
 Warmup: none
 Success statuses: 200-299
