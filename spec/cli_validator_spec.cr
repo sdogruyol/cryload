@@ -27,14 +27,15 @@ end
 
 describe Cryload::Cli::OptionsBuilder do
   it "merges cookies into request headers" do
-    options = {} of Symbol => String | Int32 | Bool | Float64 | Array(String)
-    headers = Cryload::Cli::OptionsBuilder.build_headers(options, [] of String, ["session=abc", "theme=dark"])
+    options = Cryload::Cli::Options.new
+    options.cookies = ["session=abc", "theme=dark"]
+    headers = Cryload::Cli::OptionsBuilder.build_headers(options)
     headers["Cookie"].should eq("session=abc; theme=dark")
   end
 
   it "resolves json output format from --json flag" do
-    options = {} of Symbol => String | Int32 | Bool | Float64 | Array(String)
-    options[:json] = true
+    options = Cryload::Cli::Options.new
+    options.json = true
     Cryload::Cli::OptionsBuilder.resolve_output_format(options).should eq("json")
   end
 end

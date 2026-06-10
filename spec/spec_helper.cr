@@ -18,10 +18,12 @@ if needs_build
   raise "Failed to build cryload binary (exit #{status.exit_code})" unless status.success?
 end
 
-def run_cryload(args : Array(String), *, output : IO, error : IO? = nil, chdir : String = PROJECT_ROOT)
-  if error
-    Process.run(CRYLOAD_BIN, args, output: output, error: error, chdir: chdir)
-  else
-    Process.run(CRYLOAD_BIN, args, output: output, chdir: chdir)
-  end
+def run_cryload(args : Array(String), *, output : IO, error : IO? = nil, input : IO? = nil, chdir : String = PROJECT_ROOT)
+  Process.run(
+    CRYLOAD_BIN, args,
+    input: input || Process::Redirect::Close,
+    output: output,
+    error: error || Process::Redirect::Close,
+    chdir: chdir,
+  )
 end

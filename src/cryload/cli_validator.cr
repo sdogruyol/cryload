@@ -6,7 +6,7 @@ module Cryload
       VALID_METHODS        = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
       VALID_OUTPUT_FORMATS = {"text", "json", "csv", "quiet"}
 
-      def validate(options : Hash(Symbol, String | Int32 | Bool | Float64 | Array(String)), &on_ready : String ->)
+      def validate(options : Options, &on_ready : String ->)
         return false unless validate_url_sources(options)
         return false unless validate_request_settings(options)
         return false unless validate_output_settings(options)
@@ -16,22 +16,20 @@ module Cryload
       end
 
       private def validate_url_sources(options) : Bool
-        unless options.has_key?(:server) || options.has_key?(:urls_file)
+        unless options.server || options.urls_file
           error "Usage: cryload <url> [options]  (or --urls-file PATH)"
           error "Example: cryload http://localhost:3000 -n 100"
           return false
         end
 
-        if options.has_key?(:server)
-          server = options[:server].as(String)
+        if server = options.server
           unless valid_url?(server)
             error "Invalid URL '#{server}'. Use an absolute http(s) URL (e.g. http://localhost:3000)."
             return false
           end
         end
 
-        if options.has_key?(:urls_file)
-          urls_file = options[:urls_file].as(String)
+        if urls_file = options.urls_file
           unless File.file?(urls_file)
             error "URLs file not found: #{urls_file}"
             return false
@@ -49,44 +47,40 @@ module Cryload
       end
 
       private def validate_request_settings(options) : Bool
-        connections = options[:connections].as(Int32)
-        if connections <= 0
+        if options.connections <= 0
           error "Connections must be greater than 0."
           return false
         end
 
-        method = options[:method].as(String)
-        unless VALID_METHODS.includes?(method)
-          error "Invalid HTTP method '#{method}'. Allowed: #{VALID_METHODS.join(", ")}"
+        unless VALID_METHODS.includes?(options.method)
+          error "Invalid HTTP method '#{options.method}'. Allowed: #{VALID_METHODS.join(", ")}"
           return false
         end
 
-        headers = options[:headers].as(Array(String))
-        if headers.any? { |header| !valid_header?(header) }
+        if options.headers.any? { |header| !valid_header?(header) }
           error "Invalid header format. Use 'Key: Value' (e.g. -H 'Authorization: Bearer token')."
           return false
         end
 
-        return false unless validate_user_agent(options, headers)
-        return false unless validate_host_header(options, headers)
-        return false unless validate_disable_keepalive(options, headers)
+        return false unless validate_user_agent(options)
+        return false unless validate_host_header(options)
+        return false unless validate_disable_keepalive(options)
         return false unless validate_body_sources(options)
-        return false unless validate_basic_auth(options, headers)
+        return false unless validate_basic_auth(options)
         return false unless validate_timeout(options)
 
         true
       end
 
-      private def validate_user_agent(options, headers) : Bool
-        return true unless options.has_key?(:user_agent)
+      private def validate_user_agent(options) : Bool
+        return true unless user_agent = options.user_agent
 
-        user_agent = options[:user_agent].as(String)
         if user_agent.strip.empty?
           error "User-Agent must not be empty."
           return false
         end
 
-        if header_name_present?(headers, "User-Agent")
+        if header_name_present?(options.headers, "User-Agent")
           error "Please specify only one User-Agent source: either '--user-agent' or '-H User-Agent: ...'."
           return false
         end
@@ -94,16 +88,15 @@ module Cryload
         true
       end
 
-      private def validate_host_header(options, headers) : Bool
-        return true unless options.has_key?(:host_header)
+      private def validate_host_header(options) : Bool
+        return true unless host_header = options.host_header
 
-        host_header = options[:host_header].as(String)
         if host_header.strip.empty?
           error "Host header must not be empty."
           return false
         end
 
-        if header_name_present?(headers, "Host")
+        if header_name_present?(options.headers, "Host")
           error "Please specify only one Host header source: either '--host-header' or '-H Host: ...'."
           return false
         end
@@ -111,10 +104,10 @@ module Cryload
         true
       end
 
-      private def validate_disable_keepalive(options, headers) : Bool
-        return true unless options.has_key?(:disable_keepalive)
+      private def validate_disable_keepalive(options) : Bool
+        return true unless options.disable_keepalive?
 
-        if header_name_present?(headers, "Connection")
+        if header_name_present?(options.headers, "Connection")
           error "Please specify only one Connection source: either '--disable-keepalive' or '-H Connection: ...'."
           return false
         end
@@ -123,13 +116,17 @@ module Cryload
       end
 
       private def validate_body_sources(options) : Bool
-        if options.has_key?(:body) && options.has_key?(:body_file)
-          error "Please specify only one body source: either '--body' or '--body-file'."
+        sources = 0
+        sources += 1 if options.body
+        sources += 1 if options.body_file
+        sources += 1 if options.body_stdin?
+
+        if sources > 1
+          error "Please specify only one body source: '--body', '--body-file', or '--body-stdin'."
           return false
         end
 
-        if options.has_key?(:body_file)
-          body_file = options[:body_file].as(String)
+        if body_file = options.body_file
           unless File.file?(body_file)
             error "Body file not found: #{body_file}"
             return false
@@ -139,16 +136,15 @@ module Cryload
         true
       end
 
-      private def validate_basic_auth(options, headers) : Bool
-        return true unless options.has_key?(:basic_auth)
+      private def validate_basic_auth(options) : Bool
+        return true unless auth = options.basic_auth
 
-        auth = options[:basic_auth].as(String)
         unless valid_basic_auth?(auth)
           error "Invalid basic auth format. Use 'user:password'."
           return false
         end
 
-        if headers.any? { |header| header.split(":", 2)[0]?.try(&.strip.downcase) == "authorization" }
+        if header_name_present?(options.headers, "Authorization")
           error "Please specify only one authorization source: either '--basic-auth' or '-H Authorization: ...'."
           return false
         end
@@ -157,37 +153,32 @@ module Cryload
       end
 
       private def validate_timeout(options) : Bool
-        return true unless options.has_key?(:timeout)
-
-        timeout = options[:timeout].as(Int32)
-        if timeout <= 0
-          error "Timeout must be greater than 0 seconds."
-          return false
+        if timeout = options.timeout
+          if timeout <= 0
+            error "Timeout must be greater than 0 seconds."
+            return false
+          end
         end
 
         true
       end
 
       private def validate_output_settings(options) : Bool
-        if options.has_key?(:output_format)
-          output_format = options[:output_format].as(String)
+        if output_format = options.output_format
           unless VALID_OUTPUT_FORMATS.includes?(output_format)
             error "Invalid output format '#{output_format}'. Allowed: #{VALID_OUTPUT_FORMATS.join(", ")}"
             return false
           end
-        end
 
-        if options.has_key?(:json) && options.has_key?(:output_format)
-          output_format = options[:output_format].as(String)
-          if output_format != "json"
+          if options.json? && output_format != "json"
             error "Please specify only one JSON output source: either '--json' or '--output-format json'."
             return false
           end
         end
 
-        if options.has_key?(:success_status)
+        if success_status = options.success_status
           begin
-            parse_success_status_ranges(options[:success_status].as(String))
+            parse_success_status_ranges(success_status)
           rescue ex : ArgumentError
             error ex.message.to_s
             return false
@@ -198,32 +189,28 @@ module Cryload
       end
 
       private def validate_threshold_settings(options) : Bool
-        if options.has_key?(:rate)
-          rate = options[:rate].as(Int32)
+        if rate = options.rate
           if rate <= 0
             error "Rate must be greater than 0 requests/sec."
             return false
           end
         end
 
-        if options.has_key?(:max_fail_rate)
-          max_fail_rate = options[:max_fail_rate].as(Float64)
+        if max_fail_rate = options.max_fail_rate
           if max_fail_rate < 0.0 || max_fail_rate > 100.0
             error "Max fail rate must be between 0 and 100."
             return false
           end
         end
 
-        if options.has_key?(:max_p99_ms)
-          max_p99_ms = options[:max_p99_ms].as(Float64)
+        if max_p99_ms = options.max_p99_ms
           if max_p99_ms <= 0.0
             error "Max p99 latency must be greater than 0 milliseconds."
             return false
           end
         end
 
-        if options.has_key?(:warmup)
-          warmup = options[:warmup].as(Int32)
+        if warmup = options.warmup
           if warmup < 0
             error "Warmup must be 0 or greater."
             return false
@@ -234,21 +221,19 @@ module Cryload
       end
 
       private def validate_proxy_and_cookies(options) : Bool
-        if options.has_key?(:proxy)
-          proxy = options[:proxy].as(String)
+        if proxy = options.proxy
           unless valid_proxy?(proxy)
             error "Invalid proxy URL '#{proxy}'. Use http(s)://host[:port] (e.g. http://127.0.0.1:8080)."
             return false
           end
         end
 
-        cookies = options[:cookies].as(Array(String))
-        if cookies.any?(&.strip.empty?)
+        if options.cookies.any?(&.strip.empty?)
           error "Cookie values must not be empty."
           return false
         end
 
-        unless cookies.all? { |cookie| valid_cookie?(cookie) }
+        unless options.cookies.all? { |cookie| valid_cookie?(cookie) }
           error "Invalid cookie format. Use 'name=value'."
           return false
         end
@@ -257,26 +242,27 @@ module Cryload
       end
 
       private def validate_run_mode(options, on_ready : String ->) : Bool
-        if options.has_key?(:duration) && options.has_key?(:numbers)
+        duration = options.duration
+        numbers = options.numbers
+
+        if duration && numbers
           error "Please specify only one mode: either '-n' or '-d'."
           return false
         end
 
-        if options.has_key?(:duration)
-          duration = options[:duration].as(Int32)
+        if duration
           if duration <= 0
             error "Duration must be greater than 0."
             return false
           end
-          on_ready.call("Preparing to make it CRY for #{options[:duration]} seconds with #{options[:connections]} connections!")
+          on_ready.call("Preparing to make it CRY for #{duration} seconds with #{options.connections} connections!")
           true
-        elsif options.has_key?(:numbers)
-          numbers = options[:numbers].as(Int32)
+        elsif numbers
           if numbers <= 0
             error "Number of requests must be greater than 0."
             return false
           end
-          on_ready.call("Preparing to make it CRY for #{options[:numbers]} requests with #{options[:connections]} connections!")
+          on_ready.call("Preparing to make it CRY for #{numbers} requests with #{options.connections} connections!")
           true
         else
           error "You have to specify '-n' (number of requests) or '-d' (duration in seconds)"

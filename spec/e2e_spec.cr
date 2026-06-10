@@ -421,6 +421,35 @@ describe "Cryload E2E" do
     process.exit_code.should eq(1)
   end
 
+  it "exits with error when body and body-stdin are both specified" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--body", "inline", "--body-stdin"], output: output, error: error)
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Please specify only one body source")
+    process.exit_code.should eq(1)
+  end
+
+  it "reads the request body from stdin with --body-stdin" do
+    received_body = ""
+    server, port = TestServer.start do |context|
+      received_body = context.request.body.try(&.gets_to_end) || ""
+      context.response.status_code = 200
+      context.response.print "OK"
+    end
+
+    output = IO::Memory.new
+    input = IO::Memory.new(%({"from":"stdin"}))
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "1", "-m", "POST", "--body-stdin"], output: output, input: input)
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("Successful: 1")
+    received_body.should eq(%({"from":"stdin"}))
+  end
+
   it "exits with error on invalid basic auth format" do
     output = IO::Memory.new
     error = IO::Memory.new

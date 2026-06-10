@@ -1,70 +1,95 @@
 module Cryload
   class Cli
+    # Typed CLI options populated by the option parser. Nilable fields mean
+    # "not provided"; booleans default to their flag-absent value.
+    class Options
+      property server : String?
+      property urls_file : String?
+      property numbers : Int32?
+      property duration : Int32?
+      property connections : Int32 = 10
+      property method : String = "GET"
+      property body : String?
+      property body_file : String?
+      property? body_stdin : Bool = false
+      property headers : Array(String) = [] of String
+      property cookies : Array(String) = [] of String
+      property user_agent : String?
+      property host_header : String?
+      property basic_auth : String?
+      property timeout : Int32?
+      property rate : Int32?
+      property? follow_redirects : Bool = false
+      property? disable_keepalive : Bool = false
+      property output_format : String?
+      property? json : Bool = false
+      property success_status : String?
+      property? insecure : Bool = false
+      property? fail_on_error : Bool = false
+      property? fail_on_transport_error : Bool = false
+      property max_fail_rate : Float64?
+      property max_p99_ms : Float64?
+      property warmup : Int32?
+      property proxy : String?
+      property? progress : Bool = true
+      property? random_path : Bool = false
+    end
+
     module OptionsBuilder
       extend self
 
-      def resolve_output_format(options : Hash(Symbol, String | Int32 | Bool | Float64 | Array(String))) : String
-        return "json" if options[:json]?.try(&.as(Bool))
-        options[:output_format]?.try(&.as(String)) || "text"
+      def resolve_output_format(options : Options) : String
+        return "json" if options.json?
+        options.output_format || "text"
       end
 
-      def resolve_body(options : Hash(Symbol, String | Int32 | Bool | Float64 | Array(String))) : String?
-        body = options[:body]?.try(&.as(String))
-        return body if body
-
-        body_file = options[:body_file]?.try(&.as(String))
-        return unless body_file
-
-        File.read(body_file)
+      def resolve_body(options : Options) : String?
+        return options.body if options.body
+        return STDIN.gets_to_end if options.body_stdin?
+        options.body_file.try { |path| File.read(path) }
       end
 
-      def build_headers(
-        options : Hash(Symbol, String | Int32 | Bool | Float64 | Array(String)),
-        raw_headers : Array(String),
-        cookies : Array(String),
-      ) : HTTP::Headers
-        headers = parse_headers(raw_headers)
-        if host_header = options[:host_header]?.try(&.as(String))
+      def build_headers(options : Options) : HTTP::Headers
+        headers = parse_headers(options.headers)
+        if host_header = options.host_header
           headers["Host"] = host_header
         end
-        if user_agent = options[:user_agent]?.try(&.as(String))
+        if user_agent = options.user_agent
           headers["User-Agent"] = user_agent
         end
-        if auth = options[:basic_auth]?.try(&.as(String))
+        if auth = options.basic_auth
           headers["Authorization"] = "Basic #{Base64.strict_encode(auth)}"
         end
-        unless cookies.empty?
+        unless options.cookies.empty?
           existing = headers["Cookie"]?
-          cookie_values = existing ? [existing] + cookies : cookies
+          cookie_values = existing ? [existing] + options.cookies : options.cookies
           headers["Cookie"] = cookie_values.join("; ")
         end
         headers
       end
 
-      def build_ci_thresholds(options : Hash(Symbol, String | Int32 | Bool | Float64 | Array(String))) : CiThresholds
+      def build_ci_thresholds(options : Options) : CiThresholds
         CiThresholds.new(
-          fail_on_error: options[:fail_on_error]?.try(&.as(Bool)) || false,
-          fail_on_transport_error: options[:fail_on_transport_error]?.try(&.as(Bool)) || false,
-          max_fail_rate: options[:max_fail_rate]?.try(&.as(Float64)),
-          max_p99_ms: options[:max_p99_ms]?.try(&.as(Float64)),
+          fail_on_error: options.fail_on_error?,
+          fail_on_transport_error: options.fail_on_transport_error?,
+          max_fail_rate: options.max_fail_rate,
+          max_p99_ms: options.max_p99_ms,
         )
       end
 
-      def resolve_urls(options : Hash(Symbol, String | Int32 | Bool | Float64 | Array(String))) : Array(URI)
+      def resolve_urls(options : Options) : Array(URI)
         urls = [] of URI
-        if path = options[:urls_file]?.try(&.as(String))
+        if path = options.urls_file
           urls.concat Cryload.load_urls_from_file(path)
         end
-        if server = options[:server]?.try(&.as(String))
+        if server = options.server
           urls.unshift URI.parse(server)
         end
         urls
       end
 
-      def resolve_proxy(options : Hash(Symbol, String | Int32 | Bool | Float64 | Array(String))) : URI?
-        raw = options[:proxy]?.try(&.as(String))
-        return unless raw
-        URI.parse(raw)
+      def resolve_proxy(options : Options) : URI?
+        options.proxy.try { |raw| URI.parse(raw) }
       end
 
       private def parse_headers(raw_headers : Array(String))
