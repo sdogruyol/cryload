@@ -1,5 +1,6 @@
 # Unreleased
 
+- **Load testing** — Added `--disable-keepalive` to open a fresh connection per request (sends `Connection: close`), so connection setup cost is part of the measured latency
 - **Performance** — Duration mode now flushes worker stats in batches (250 requests or 1s) instead of sending one channel message per request
 - **Performance** — `--random-path` and `--urls-file` now reuse one keep-alive client per origin instead of opening a new TCP/TLS connection per request
 - **Accuracy** — Transport errors are excluded from latency metrics (avg/min/max/stdev/percentiles/histogram), so connect failures and timeouts no longer skew percentiles; latency fields report 0 when no responses were received
