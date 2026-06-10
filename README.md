@@ -64,7 +64,7 @@ curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/in
 Install a specific version:
 
 ```bash
-VERSION=v4.0.0 curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh -s
+VERSION=v5.0.0 curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh -s
 ```
 
 **Windows** (PowerShell):
