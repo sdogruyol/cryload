@@ -1,3 +1,10 @@
+# Unreleased
+
+- **Performance** — Duration mode now flushes worker stats in batches (250 requests or 1s) instead of sending one channel message per request
+- **Performance** — `--random-path` and `--urls-file` now reuse one keep-alive client per origin instead of opening a new TCP/TLS connection per request
+- **Accuracy** — Transport errors are excluded from latency metrics (avg/min/max/stdev/percentiles/histogram), so connect failures and timeouts no longer skew percentiles; latency fields report 0 when no responses were received
+- **CLI** — Invalid numeric flag values (e.g. `-n abc`, `--max-p99 zz`) now print a clear error and exit 1 instead of crashing with a stack trace
+
 # 4.0.0 (21-05-2026)
 
 - **Load testing** — Added `--warmup` to run untimed requests before the benchmark window
