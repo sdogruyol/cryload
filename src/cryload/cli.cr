@@ -37,14 +37,15 @@ module Cryload
       warmup_seconds = @options[:warmup]?.try(&.as(Int32)) || 0
       progress = @options[:progress].as(Bool)
       random_path = @options[:random_path]?.try(&.as(Bool)) || false
+      disable_keepalive = @options[:disable_keepalive]?.try(&.as(Bool)) || false
       proxy = OptionsBuilder.resolve_proxy(@options)
 
       if @options.has_key?(:duration)
         duration = @options[:duration].as(Int32)
-        Cryload::LoadGenerator.new display_url, nil, connections, duration, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges, ci_thresholds, urls, warmup_seconds, proxy, progress, random_path
+        Cryload::LoadGenerator.new display_url, nil, connections, duration, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges, ci_thresholds, urls, warmup_seconds, proxy, progress, random_path, disable_keepalive
       else
         numbers = @options[:numbers].as(Int32)
-        Cryload::LoadGenerator.new display_url, numbers, connections, nil, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges, ci_thresholds, urls, warmup_seconds, proxy, progress, random_path
+        Cryload::LoadGenerator.new display_url, numbers, connections, nil, output_format, method, body, headers, timeout_seconds, insecure, rate_limit, follow_redirects, success_status_ranges, ci_thresholds, urls, warmup_seconds, proxy, progress, random_path, disable_keepalive
       end
     end
 
@@ -109,6 +110,10 @@ module Cryload
 
           opts.on("-L", "--follow-redirects", "Follow HTTP redirects (up to 5 hops)") do
             @options[:follow_redirects] = true
+          end
+
+          opts.on("--disable-keepalive", "Open a new connection for every request (sends 'Connection: close')") do
+            @options[:disable_keepalive] = true
           end
 
           opts.on("--output-format FORMAT", "Output format: text, json, csv, quiet") do |v|

@@ -28,7 +28,9 @@ module Cryload
       @proxy : URI? = nil,
       @progress : Bool = true,
       @random_path : Bool = false,
+      @disable_keepalive : Bool = false,
     )
+      @http_headers["Connection"] = "close" if @disable_keepalive
       @request_number = request_number || -1
       @duration_seconds = duration_seconds
       @duration_mode = !@duration_seconds.nil?
@@ -37,7 +39,7 @@ module Cryload
       worker_count = @duration_mode ? {1, @connections}.max : {1, {@connections, @request_number}.min}.max
 
       Cryload.create_stats @request_number, @duration_mode, Time.instant, @host, @output_format, @success_status_ranges, @ci_thresholds, @progress
-      Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count, @rate_limit, @warmup_seconds
+      Logger.log_header @host, @duration_seconds, @request_number > 0 ? @request_number : nil, worker_count, @rate_limit, @warmup_seconds, @disable_keepalive
       run_warmup worker_count if @warmup_seconds > 0
 
       request_channel, done_channel, worker_count = generate_request_channel worker_count
@@ -69,7 +71,7 @@ module Cryload
 
         while acquire_rate_slot(rate_limiter, deadline)
           uri = next_uri
-          create_request(pooled_client(clients, uri), uri, local_batch)
+          perform_request(clients, uri, local_batch)
           if local_batch.total_request_count >= BATCH_FLUSH_SIZE || (Time.instant - last_flush) >= BATCH_FLUSH_INTERVAL
             local_batch = flush_batch stats_channel, local_batch
             last_flush = Time.instant
@@ -91,7 +93,7 @@ module Cryload
         requests_for_this_worker.times do
           acquire_rate_slot rate_limiter
           uri = next_uri
-          create_request(pooled_client(clients, uri), uri, local_batch)
+          perform_request(clients, uri, local_batch)
           local_batch = flush_batch_if_needed stats_channel, local_batch
         end
 
@@ -112,10 +114,7 @@ module Cryload
           begin
             while Time.instant < deadline
               uri = next_uri
-              begin
-                Request.new pooled_client(clients, uri), uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
-              rescue
-              end
+              perform_warmup_request(clients, uri)
             end
           ensure
             clients.each_value(&.close)
@@ -149,6 +148,35 @@ module Cryload
     # and --random-path runs don't pay a TCP/TLS handshake per request.
     private def pooled_client(clients : Hash(String, HTTP::Client), uri : URI) : HTTP::Client
       clients[origin_key(uri)] ||= client_for(uri)
+    end
+
+    # With --disable-keepalive every request gets a fresh client, so the
+    # connection setup cost is part of the measured latency.
+    private def perform_request(clients : Hash(String, HTTP::Client), uri : URI, local_batch : Stats::Batch)
+      if @disable_keepalive
+        client = client_for(uri)
+        begin
+          create_request(client, uri, local_batch)
+        ensure
+          client.close
+        end
+      else
+        create_request(pooled_client(clients, uri), uri, local_batch)
+      end
+    end
+
+    private def perform_warmup_request(clients : Hash(String, HTTP::Client), uri : URI)
+      if @disable_keepalive
+        client = client_for(uri)
+        begin
+          Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
+        ensure
+          client.close
+        end
+      else
+        Request.new pooled_client(clients, uri), uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
+      end
+    rescue
     end
 
     private def origin_key(uri : URI) : String

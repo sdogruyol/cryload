@@ -1,6 +1,7 @@
 require "./spec_helper"
 require "./support/test_tls"
 require "./support/mock_proxy"
+require "./support/test_server"
 require "http/server"
 require "json"
 
@@ -457,6 +458,37 @@ describe "Cryload E2E" do
 
     combined = output.to_s + error.to_s
     combined.should contain("Please specify only one Host header source")
+    process.exit_code.should eq(1)
+  end
+
+  it "sends 'Connection: close' on every request with --disable-keepalive" do
+    server, port = TestServer.start do |context|
+      if context.request.headers["Connection"]? == "close"
+        context.response.status_code = 200
+        context.response.print "closed"
+      else
+        context.response.status_code = 500
+        context.response.print "keep-alive"
+      end
+    end
+
+    output = IO::Memory.new
+    process = run_cryload(["http://127.0.0.1:#{port}", "-n", "5", "--disable-keepalive"], output: output)
+
+    server.close
+
+    process.exit_code.should eq(0)
+    output.to_s.should contain("Keep-alive: disabled")
+    output.to_s.should contain("Successful: 5")
+  end
+
+  it "exits with error when disable-keepalive and Connection header are both specified" do
+    output = IO::Memory.new
+    error = IO::Memory.new
+    process = run_cryload(["http://localhost:8080", "-n", "5", "--disable-keepalive", "-H", "Connection: keep-alive"], output: output, error: error)
+
+    combined = output.to_s + error.to_s
+    combined.should contain("Please specify only one Connection source")
     process.exit_code.should eq(1)
   end
 

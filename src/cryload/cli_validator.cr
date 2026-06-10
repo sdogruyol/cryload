@@ -69,6 +69,7 @@ module Cryload
 
         return false unless validate_user_agent(options, headers)
         return false unless validate_host_header(options, headers)
+        return false unless validate_disable_keepalive(options, headers)
         return false unless validate_body_sources(options)
         return false unless validate_basic_auth(options, headers)
         return false unless validate_timeout(options)
@@ -104,6 +105,17 @@ module Cryload
 
         if header_name_present?(headers, "Host")
           error "Please specify only one Host header source: either '--host-header' or '-H Host: ...'."
+          return false
+        end
+
+        true
+      end
+
+      private def validate_disable_keepalive(options, headers) : Bool
+        return true unless options.has_key?(:disable_keepalive)
+
+        if header_name_present?(headers, "Connection")
+          error "Please specify only one Connection source: either '--disable-keepalive' or '-H Connection: ...'."
           return false
         end
 

@@ -4,7 +4,7 @@ module Cryload
   # Singleton class which handles all the logging
   class Logger
     # Logs the test header
-    def self.log_header(url : String, duration_sec : Int32?, request_count : Int32?, connections : Int32, rate_limit : Int32?, warmup_seconds : Int32 = 0)
+    def self.log_header(url : String, duration_sec : Int32?, request_count : Int32?, connections : Int32, rate_limit : Int32?, warmup_seconds : Int32 = 0, disable_keepalive : Bool = false)
       return unless Cryload.stats.output_format == "text"
 
       mode = if duration_sec
@@ -16,6 +16,7 @@ module Cryload
       puts "Running load test @ #{url}"
       puts "Mode: #{mode}"
       puts "Connections: #{connections}"
+      puts "Keep-alive: #{disable_keepalive ? "disabled" : "enabled"}"
       puts "Rate limit: #{rate_limit ? "#{rate_limit} req/s" : "unlimited"}"
       puts "Warmup: #{warmup_seconds > 0 ? "#{warmup_seconds}s" : "none"}"
       puts "Success statuses: #{format_success_statuses(Cryload.stats.success_status_ranges)}"
