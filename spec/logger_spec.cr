@@ -6,7 +6,7 @@ describe Cryload::Logger do
     stats = Cryload::Stats.new(3, url: "http://example.test/run")
     stats.record_response(10.0, 200, 12)
     stats.record_response(20.0, 404, 8)
-    stats.record_error(5.0, "Socket::ConnectError")
+    stats.record_error("Socket::ConnectError")
 
     parsed = JSON.parse(Cryload::Logger.json_document(stats))
 

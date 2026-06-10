@@ -59,15 +59,15 @@ module Cryload
           opts.banner = "Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD\n\nUsage: cryload <url> [options]"
 
           opts.on("-n NUMBERS", "--numbers NUMBERS", "Number of requests to make") do |v|
-            @options[:numbers] = v.to_i
+            @options[:numbers] = parse_int(v, "-n/--numbers")
           end
 
           opts.on("-c CONNECTIONS", "--connections CONNECTIONS", "Number of concurrent connections (default: 10)") do |v|
-            @options[:connections] = v.to_i
+            @options[:connections] = parse_int(v, "-c/--connections")
           end
 
           opts.on("-d SECONDS", "--duration SECONDS", "Duration of test in seconds (e.g. -d 10 for 10 seconds)") do |v|
-            @options[:duration] = v.to_i
+            @options[:duration] = parse_int(v, "-d/--duration")
           end
 
           opts.on("-m METHOD", "--method METHOD", "HTTP method (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS)") do |v|
@@ -100,11 +100,11 @@ module Cryload
           end
 
           opts.on("--timeout SECONDS", "Client connect/read timeout in seconds") do |v|
-            @options[:timeout] = v.to_i
+            @options[:timeout] = parse_int(v, "--timeout")
           end
 
           opts.on("-q RATE", "--rate RATE", "Total request rate limit in requests/sec") do |v|
-            @options[:rate] = v.to_i
+            @options[:rate] = parse_int(v, "-q/--rate")
           end
 
           opts.on("-L", "--follow-redirects", "Follow HTTP redirects (up to 5 hops)") do
@@ -136,15 +136,15 @@ module Cryload
           end
 
           opts.on("--max-fail-rate PERCENT", "Exit with code 1 when failure rate exceeds PERCENT") do |v|
-            @options[:max_fail_rate] = v.to_f
+            @options[:max_fail_rate] = parse_float(v, "--max-fail-rate")
           end
 
           opts.on("--max-p99 MS", "Exit with code 1 when p99 latency exceeds MS milliseconds") do |v|
-            @options[:max_p99_ms] = v.to_f
+            @options[:max_p99_ms] = parse_float(v, "--max-p99")
           end
 
           opts.on("--warmup SECONDS", "Warm up before the timed benchmark (seconds)") do |v|
-            @options[:warmup] = v.to_i
+            @options[:warmup] = parse_int(v, "--warmup")
           end
 
           opts.on("--proxy URL", "HTTP(S) proxy (e.g. http://127.0.0.1:8080 or http://user:pass@proxy:8080)") do |v|
@@ -196,6 +196,14 @@ module Cryload
       if (url = ARGV[0]?) && !url.starts_with?("-")
         @options[:server] = url
       end
+    end
+
+    private def parse_int(value : String, flag : String) : Int32
+      value.to_i? || raise OptionParser::Exception.new("Invalid value '#{value}' for #{flag}: expected an integer")
+    end
+
+    private def parse_float(value : String, flag : String) : Float64
+      value.to_f? || raise OptionParser::Exception.new("Invalid value '#{value}' for #{flag}: expected a number")
     end
 
     private def print_start_message(message : String)

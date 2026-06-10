@@ -3,6 +3,7 @@ require "random"
 module Cryload
   class LoadGenerator
     BATCH_FLUSH_SIZE     = 250_i64
+    BATCH_FLUSH_INTERVAL = 1.second
     DURATION_DRAIN_GRACE = 500.milliseconds
     @@connection_error_printed = false
     @@connection_error_mutex = Mutex.new
@@ -63,24 +64,19 @@ module Cryload
       spawn do
         deadline = Time.instant + duration_seconds.seconds
         local_batch = Stats::Batch.new(@success_status_ranges)
-        shared_client = client_for(@urls.first) unless client_per_request?
+        clients = {} of String => HTTP::Client
+        last_flush = Time.instant
 
         while acquire_rate_slot(rate_limiter, deadline)
           uri = next_uri
-          if client_per_request?
-            client = client_for(uri)
-            create_request(client, uri, local_batch)
-            client.close
-          else
-            unless client = shared_client
-              raise "Shared HTTP client is not initialized"
-            end
-            create_request(client, uri, local_batch)
+          create_request(pooled_client(clients, uri), uri, local_batch)
+          if local_batch.total_request_count >= BATCH_FLUSH_SIZE || (Time.instant - last_flush) >= BATCH_FLUSH_INTERVAL
+            local_batch = flush_batch stats_channel, local_batch
+            last_flush = Time.instant
           end
-          local_batch = flush_batch stats_channel, local_batch
         end
 
-        shared_client.try &.close
+        clients.each_value(&.close)
         flush_batch stats_channel, local_batch
         done_channel.send nil
       end
@@ -90,25 +86,16 @@ module Cryload
       spawn do
         requests_for_this_worker = requests_per_worker worker_index, total_workers
         local_batch = Stats::Batch.new(@success_status_ranges)
-        shared_client = client_for(@urls.first) unless client_per_request?
+        clients = {} of String => HTTP::Client
 
         requests_for_this_worker.times do
           acquire_rate_slot rate_limiter
           uri = next_uri
-          if client_per_request?
-            client = client_for(uri)
-            create_request(client, uri, local_batch)
-            client.close
-          else
-            unless client = shared_client
-              raise "Shared HTTP client is not initialized"
-            end
-            create_request(client, uri, local_batch)
-          end
+          create_request(pooled_client(clients, uri), uri, local_batch)
           local_batch = flush_batch_if_needed stats_channel, local_batch
         end
 
-        shared_client.try &.close
+        clients.each_value(&.close)
         flush_batch stats_channel, local_batch
         done_channel.send nil
       end
@@ -121,30 +108,17 @@ module Cryload
 
       worker_count.times do
         spawn do
-          local_client = client_for(@urls.first) unless client_per_request?
+          clients = {} of String => HTTP::Client
           begin
             while Time.instant < deadline
               uri = next_uri
-              if client_per_request?
-                client = client_for(uri)
-                begin
-                  Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
-                rescue
-                ensure
-                  client.close
-                end
-              else
-                unless client = local_client
-                  raise "Shared HTTP client is not initialized"
-                end
-                begin
-                  Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
-                rescue
-                end
+              begin
+                Request.new pooled_client(clients, uri), uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
+              rescue
               end
             end
           ensure
-            local_client.try &.close
+            clients.each_value(&.close)
           end
           done_channel.send nil
         end
@@ -171,8 +145,14 @@ module Cryload
       Cryload.create_http_client uri, @timeout_seconds, @insecure, @proxy
     end
 
-    private def client_per_request? : Bool
-      @urls.size > 1 || @random_path
+    # Reuses one keep-alive client per origin within a worker, so multi-URL
+    # and --random-path runs don't pay a TCP/TLS handshake per request.
+    private def pooled_client(clients : Hash(String, HTTP::Client), uri : URI) : HTTP::Client
+      clients[origin_key(uri)] ||= client_for(uri)
+    end
+
+    private def origin_key(uri : URI) : String
+      "#{uri.scheme}://#{uri.host}:#{Cryload.effective_port(uri)}"
     end
 
     private def duration_seconds : Int32
@@ -326,24 +306,20 @@ module Cryload
     end
 
     private def create_request(client, uri, local_batch : Stats::Batch)
-      started_at = Time.instant
-      begin
-        request = Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
-        local_batch.record_response request.time_taken, request.status_code, request.response_bytes
-      rescue ex : Exception
-        elapsed_ms = (Time.instant - started_at).total_seconds * 1000.0
-        local_batch.record_error elapsed_ms, transport_error_category(ex)
-        if ex.is_a?(Socket::Error | IO::Error | OpenSSL::SSL::Error)
-          host = uri.host || "localhost"
-          port = Cryload.effective_port(uri)
-          msg = ex.message.to_s
-          @@connection_error_mutex.synchronize do
-            unless @@connection_error_printed
-              STDERR.puts "Connection failed: Could not reach #{host}:#{port}"
-              STDERR.puts "  → #{msg}"
-              STDERR.puts "  → Continuing and counting transport errors in the final report."
-              @@connection_error_printed = true
-            end
+      request = Request.new client, uri, @http_method, @http_headers, @http_body, @timeout_seconds, @insecure, @follow_redirects, @proxy
+      local_batch.record_response request.time_taken, request.status_code, request.response_bytes
+    rescue ex : Exception
+      local_batch.record_error transport_error_category(ex)
+      if ex.is_a?(Socket::Error | IO::Error | OpenSSL::SSL::Error)
+        host = uri.host || "localhost"
+        port = Cryload.effective_port(uri)
+        msg = ex.message.to_s
+        @@connection_error_mutex.synchronize do
+          unless @@connection_error_printed
+            STDERR.puts "Connection failed: Could not reach #{host}:#{port}"
+            STDERR.puts "  → #{msg}"
+            STDERR.puts "  → Continuing and counting transport errors in the final report."
+            @@connection_error_printed = true
           end
         end
       end

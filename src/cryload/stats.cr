@@ -75,11 +75,12 @@ module Cryload
         update_latency_metrics time_taken_ms
       end
 
-      def record_error(time_taken_ms : Float64, category : String)
+      # Transport errors are excluded from latency metrics: connect failures
+      # (~0 ms) and timeouts would otherwise skew the percentiles.
+      def record_error(category : String)
         @total_request_count += 1
         @transport_error_count += 1
         @error_counts[category] += 1
-        update_latency_metrics time_taken_ms
       end
 
       private def update_latency_metrics(time_taken_ms : Float64)
@@ -88,7 +89,7 @@ module Cryload
         @max_request_time_ms = {@max_request_time_ms, time_taken_ms}.max
 
         delta = time_taken_ms - @mean_latency_ms
-        @mean_latency_ms += delta / @total_request_count
+        @mean_latency_ms += delta / @response_count
         delta2 = time_taken_ms - @mean_latency_ms
         @m2_latency_ms += delta * delta2
 
@@ -167,29 +168,29 @@ module Cryload
 
     def min_request_time
       @mutex.synchronize do
-        return 0.0 if @total_request_count == 0
+        return 0.0 if @response_count == 0
         @min_request_time_ms
       end
     end
 
     def max_request_time
       @mutex.synchronize do
-        return 0.0 if @total_request_count == 0
+        return 0.0 if @response_count == 0
         @max_request_time_ms
       end
     end
 
     def average_request_time
       @mutex.synchronize do
-        return 0.0 if @total_request_count == 0
-        @total_request_time_ms / @total_request_count
+        return 0.0 if @response_count == 0
+        @total_request_time_ms / @response_count
       end
     end
 
     def latency_stdev
       @mutex.synchronize do
-        return 0.0 if @total_request_count < 2
-        variance = @m2_latency_ms / @total_request_count
+        return 0.0 if @response_count < 2
+        variance = @m2_latency_ms / @response_count
         Math.sqrt(variance)
       end
     end
@@ -304,13 +305,13 @@ module Cryload
 
     def latency_histogram_bins(bin_count : Int32 = 11)
       @mutex.synchronize do
-        return [] of NamedTuple(start_ms: Float64, end_ms: Float64, count: Int64, percent: Float64) if @total_request_count == 0
+        return [] of NamedTuple(start_ms: Float64, end_ms: Float64, count: Int64, percent: Float64) if @response_count == 0
 
         if (@max_request_time_ms - @min_request_time_ms) < HISTOGRAM_BUCKET_SIZE_MS
           return [{
             start_ms: @min_request_time_ms.round(2),
             end_ms:   @max_request_time_ms.round(2),
-            count:    @total_request_count,
+            count:    @response_count,
             percent:  100.0,
           }]
         end
@@ -343,7 +344,7 @@ module Cryload
             start_ms: start_ms.round(2),
             end_ms:   end_ms.round(2),
             count:    counts[index],
-            percent:  ((counts[index].to_f / @total_request_count) * 100.0).round(2),
+            percent:  ((counts[index].to_f / @response_count) * 100.0).round(2),
           }
         end
 
@@ -385,9 +386,9 @@ module Cryload
       merge_batch batch
     end
 
-    def record_error(time_taken_ms : Float64, category : String)
+    def record_error(category : String)
       batch = Batch.new(@success_status_ranges)
-      batch.record_error time_taken_ms, category
+      batch.record_error category
       merge_batch batch
     end
 
@@ -404,11 +405,11 @@ module Cryload
     end
 
     private def merge_batch_without_lock(batch : Batch)
-      previous_count = @total_request_count
-      batch_count = batch.total_request_count
+      previous_responses = @response_count
+      batch_responses = batch.response_count
 
-      @total_request_count += batch_count
-      @response_count += batch.response_count
+      @total_request_count += batch.total_request_count
+      @response_count += batch_responses
       @total_response_bytes += batch.total_response_bytes
       @ok_requests += batch.ok_requests
       @not_ok_requests += batch.not_ok_requests
@@ -417,14 +418,16 @@ module Cryload
       @min_request_time_ms = @min_request_time_ms.finite? ? {@min_request_time_ms, batch.min_request_time_ms}.min : batch.min_request_time_ms
       @max_request_time_ms = {@max_request_time_ms, batch.max_request_time_ms}.max
 
-      if previous_count == 0
-        @mean_latency_ms = batch.mean_latency_ms
-        @m2_latency_ms = batch.m2_latency_ms
-      elsif batch_count > 0
-        combined_count = @total_request_count
-        delta = batch.mean_latency_ms - @mean_latency_ms
-        @mean_latency_ms += delta * batch_count / combined_count
-        @m2_latency_ms += batch.m2_latency_ms + delta * delta * previous_count * batch_count / combined_count
+      if batch_responses > 0
+        if previous_responses == 0
+          @mean_latency_ms = batch.mean_latency_ms
+          @m2_latency_ms = batch.m2_latency_ms
+        else
+          combined_responses = @response_count
+          delta = batch.mean_latency_ms - @mean_latency_ms
+          @mean_latency_ms += delta * batch_responses / combined_responses
+          @m2_latency_ms += batch.m2_latency_ms + delta * delta * previous_responses * batch_responses / combined_responses
+        end
       end
 
       batch.latency_buckets.each do |bucket_index, count|
@@ -481,9 +484,9 @@ module Cryload
     end
 
     private def percentile_request_time_unlocked(percentile : Float64) : Float64
-      return 0.0 if @total_request_count == 0
+      return 0.0 if @response_count == 0
 
-      rank = (@total_request_count.to_f * (percentile / 100.0)).ceil.to_i64
+      rank = (@response_count.to_f * (percentile / 100.0)).ceil.to_i64
       rank = 1_i64 if rank < 1
       seen = 0_i64
 

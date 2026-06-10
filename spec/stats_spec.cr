@@ -90,7 +90,7 @@ describe Cryload::Stats do
   it "tracks transport errors without losing run progress" do
     stats = Cryload::Stats.new(5)
 
-    stats.record_error(5.0, "Socket::ConnectError")
+    stats.record_error("Socket::ConnectError")
     stats.record_response(15.0, 200)
 
     stats.total_request_count.should eq(2)
@@ -100,13 +100,26 @@ describe Cryload::Stats do
     stats.final_exit_code.should eq(0)
   end
 
+  it "excludes transport errors from latency metrics" do
+    stats = Cryload::Stats.new(5)
+
+    stats.record_response(10.0, 200)
+    stats.record_response(20.0, 200)
+    stats.record_error("Socket::ConnectError")
+
+    stats.average_request_time.should be_close(15.0, 0.001)
+    stats.min_request_time.should be_close(10.0, 0.001)
+    stats.max_request_time.should be_close(20.0, 0.001)
+    stats.p99_request_time.should be_close(20.0, 0.001)
+  end
+
   it "merges worker-local batches into global stats" do
     stats = Cryload::Stats.new(10)
     batch = Cryload::Stats::Batch.new
 
     batch.record_response(10.0, 200)
     batch.record_response(30.0, 503, 120)
-    batch.record_error(20.0, "Socket::ConnectError")
+    batch.record_error("Socket::ConnectError")
 
     stats.merge_batch(batch)
 
@@ -117,7 +130,7 @@ describe Cryload::Stats do
     stats.ok_requests.should eq(1)
     stats.not_ok_requests.should eq(1)
     stats.average_request_time.should be_close(20.0, 0.001)
-    stats.p50_request_time.should eq(20.0)
+    stats.p50_request_time.should eq(10.0)
     stats.status_code_counts.should eq({200 => 1_i64, 503 => 1_i64})
     stats.error_counts.should eq({"Socket::ConnectError" => 1_i64})
   end
@@ -125,8 +138,8 @@ describe Cryload::Stats do
   it "returns a failing exit code when every attempt is a transport error" do
     stats = Cryload::Stats.new(2)
 
-    stats.record_error(5.0, "Socket::ConnectError")
-    stats.record_error(8.0, "Socket::ConnectError")
+    stats.record_error("Socket::ConnectError")
+    stats.record_error("Socket::ConnectError")
 
     stats.final_exit_code.should eq(1)
   end
@@ -150,7 +163,7 @@ describe Cryload::Stats do
   it "fails exit code when fail-on-transport-error is enabled" do
     stats = Cryload::Stats.new(5, ci_thresholds: Cryload::CiThresholds.new(fail_on_transport_error: true))
 
-    stats.record_error(5.0, "Socket::ConnectError")
+    stats.record_error("Socket::ConnectError")
     stats.record_response(15.0, 200)
 
     stats.final_exit_code.should eq(1)
