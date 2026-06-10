@@ -1,6 +1,9 @@
 # Unreleased
 
 - **Load testing** — Added `--disable-keepalive` to open a fresh connection per request (sends `Connection: close`), so connection setup cost is part of the measured latency
+- **CLI** — Live progress is now time-based: a ticker refreshes the line every second regardless of throughput, so slow and rate-limited runs stay visible
+- **Performance** — Latency histogram now uses HDR-style logarithmic buckets (~1% relative precision from 1µs to 1h) instead of a dense linear array, cutting memory from ~4.8 MB to ~18 KB; reported percentiles are accurate within 1%
+- **Breaking (CSV)** — Removed duplicate `latency_fastest_ms` and `latency_slowest_ms` columns; use `latency_min_ms` and `latency_max_ms`
 - **Performance** — Duration mode now flushes worker stats in batches (250 requests or 1s) instead of sending one channel message per request
 - **Performance** — `--random-path` and `--urls-file` now reuse one keep-alive client per origin instead of opening a new TCP/TLS connection per request
 - **Accuracy** — Transport errors are excluded from latency metrics (avg/min/max/stdev/percentiles/histogram), so connect failures and timeouts no longer skew percentiles; latency fields report 0 when no responses were received
