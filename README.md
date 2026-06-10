@@ -122,6 +122,7 @@ cryload <url> [options]
 | `-m`, `--method` | HTTP method (default: GET) |
 | `-b`, `--body` | HTTP request body |
 | `--body-file` | Read HTTP request body from file |
+| `--body-stdin` | Read HTTP request body from standard input |
 | `-H`, `--header` | HTTP header, repeatable (`-H "Key: Value"`) |
 | `--user-agent` | Set the `User-Agent` header |
 | `--host-header` | Override the `Host` header |
@@ -178,6 +179,11 @@ cryload http://localhost:3000/api -n 500 -m POST -H "Content-Type: application/j
 POST JSON body from file
 ```bash
 cryload http://localhost:3000/api -n 500 -m POST -H "Content-Type: application/json" --body-file payload.json
+```
+
+POST body from stdin (pipe-friendly)
+```bash
+jq -c '.payload' fixture.json | cryload http://localhost:3000/api -n 500 -m POST -H "Content-Type: application/json" --body-stdin
 ```
 
 POST with multiple headers
