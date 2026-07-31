@@ -16,6 +16,10 @@ Cross-platform, single-binary HTTP load testing CLI. Concurrent requests, latenc
 
 ## Quick start
 
+<p align="center">
+  <img src="assets/cryload.png" alt="cryload demo" width="700">
+</p>
+
 ```bash
 curl -sSfL https://raw.githubusercontent.com/sdogruyol/cryload/master/scripts/install.sh | sh
 cryload https://example.com -n 1000 -c 50
