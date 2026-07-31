@@ -1,6 +1,6 @@
 name: cryload
 
-description: "Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD"
+description: "HTTP load testing for CI/CD — 115K req/s, single binary, JSON output"
 
 version: 5.0.0
 
