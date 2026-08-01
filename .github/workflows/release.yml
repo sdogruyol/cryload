@@ -53,8 +53,35 @@ jobs:
       - name: Install dependencies
         run: shards install
 
+      - name: Link OpenSSL statically (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew list --versions openssl@3 >/dev/null || brew install openssl@3
+          OSSL="$(brew --prefix openssl@3)"
+          # A directory containing only the static archives; listed first in
+          # CRYSTAL_LIBRARY_PATH so the linker picks them over any dylib.
+          STATIC="$RUNNER_TEMP/openssl-static"
+          mkdir -p "$STATIC"
+          cp "$OSSL/lib/libssl.a" "$OSSL/lib/libcrypto.a" "$STATIC/"
+          CRYSTAL_LIB="$(crystal env CRYSTAL_LIBRARY_PATH)"
+          echo "CRYSTAL_LIBRARY_PATH=$STATIC:$CRYSTAL_LIB" >> "$GITHUB_ENV"
+          # Keep the real (unmodified) .pc files discoverable for the stdlib's
+          # header and version probes; linking is controlled by the line above.
+          echo "PKG_CONFIG_PATH=$OSSL/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+
       - name: Build release binary
         run: shards build --release
+
+      - name: Verify only system libraries are linked (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          otool -L bin/cryload
+          extra="$(otool -L bin/cryload | tail -n +2 | awk '{print $1}' | grep -vE '^(/usr/lib/|/System/)' || true)"
+          if [ -n "$extra" ]; then
+            echo "bin/cryload links non-system libraries:" >&2
+            echo "$extra" >&2
+            exit 1
+          fi
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
