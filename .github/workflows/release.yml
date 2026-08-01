@@ -31,13 +31,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Linux binaries are linked fully statically (musl) so they run on
+          # any distro regardless of the glibc/OpenSSL versions installed on
+          # the user's machine. The build runs in an Alpine container via
+          # `docker run` rather than a job container: actions/runner ships no
+          # musl Node.js for arm64 (actions/runner#3665), so actions/checkout
+          # cannot execute inside an Alpine job container on the arm64 runner.
           - os: ubuntu-latest
+            build_container: crystallang/crystal:1.19.0-alpine
             artifact_name: cryload-linux
             binary_path: bin/cryload
           - os: ubuntu-24.04-arm
+            build_container: crystallang/crystal:1.19.0-alpine
             artifact_name: cryload-linux-arm64
             binary_path: bin/cryload
           - os: macos-latest
+            # OpenSSL is statically linked on macOS (see the step below);
+            # -Dstatic_openssl compiles in the same OPENSSL_CONF guard that
+            # --static enables for the Linux binaries.
+            build_flags: -Dstatic_openssl
             artifact_name: cryload-macos
             binary_path: bin/cryload
           - os: windows-latest
@@ -47,10 +59,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: crystal-lang/install-crystal@v1
+        if: ${{ !matrix.build_container }}
         with:
           crystal: "1.19.0"
 
       - name: Install dependencies
+        if: ${{ !matrix.build_container }}
         run: shards install
 
       - name: Link OpenSSL statically (macOS)
@@ -69,8 +83,21 @@ jobs:
           # header and version probes; linking is controlled by the line above.
           echo "PKG_CONFIG_PATH=$OSSL/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
 
+      - name: Build static release binary (Linux, in Alpine container)
+        if: matrix.build_container
+        run: |
+          docker run --rm -v "$PWD":/src -w /src "${{ matrix.build_container }}" \
+            sh -c "apk add -q binutils && shards install && shards build --release --static --no-debug && strip ${{ matrix.binary_path }}"
+
       - name: Build release binary
-        run: shards build --release
+        if: ${{ !matrix.build_container }}
+        run: shards build --release ${{ matrix.build_flags }}
+
+      - name: Verify binary is statically linked (Linux)
+        if: matrix.build_container
+        run: |
+          file ${{ matrix.binary_path }}
+          file ${{ matrix.binary_path }} | grep -q "statically linked"
 
       - name: Verify only system libraries are linked (macOS)
         if: runner.os == 'macOS'
@@ -119,6 +146,11 @@ jobs:
           sleep 1
           "$BIN" http://127.0.0.1:8765 -n 1 --no-progress --output-format quiet
           kill "$server_pid"
+
+      - name: Verify HTTPS works (exercises static OpenSSL config/CA paths)
+        run: |
+          BIN="dist/${{ matrix.artifact_name }}/cryload"
+          "$BIN" https://example.com -n 1 --no-progress --output-format quiet
 
   release:
     name: Create GitHub Release
