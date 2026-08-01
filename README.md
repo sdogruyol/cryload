@@ -197,13 +197,27 @@ cryload is written in [Crystal](https://crystal-lang.org/). Ruby-like syntax, co
 
 ---
 
-## Contributing
+## FAQ
 
-1. Fork & branch
-2. Commit & push
-3. Open a PR
+**Why not just use ab / hey / wrk?**
 
----
+Those tools are great for local benchmarks. cryload is built for CI/CD. JSON output, threshold exit codes, cross-platform binaries. If you want to fail a pipeline when p99 goes over 200ms, use cryload.
+
+**Can I use cryload for DDoS?**
+
+No. cryload is designed for testing your own servers and CI pipelines. Do not use it against targets you don't own.
+
+**Does cryload support HTTP/2?**
+
+Not yet. HTTP/1.1 only for now. HTTP/2 is on the roadmap.
+
+**Is there a Docker image?**
+
+Not yet. The single binary approach means you don't need Docker. Just download and run.
+
+**Why is it written in Crystal?**
+
+Crystal compiles to a single native binary with no runtime. It starts instantly, uses minimal memory, and delivers C-like performance with Ruby-like syntax.
 
 ## Sponsors
 
@@ -215,4 +229,4 @@ If cryload helps your CI pipeline, consider [sponsoring](https://github.com/spon
 
 ## License
 
-MIT
+MI
