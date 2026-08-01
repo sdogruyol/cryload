@@ -1,3 +1,12 @@
+# 5.1.0 (01-08-2026)
+
+- **Releases** — Linux release binaries are now fully static (musl/Alpine), so they run on any distro without matching glibc/OpenSSL versions
+- **Releases** — macOS release binary now links OpenSSL statically; release smoke tests cover HTTPS
+- **Resilience** — Static OpenSSL builds ignore the host `openssl.cnf` by default (`OPENSSL_CONF` → null device) so foreign crypto-policy configs cannot abort TLS
+- **Resilience** — On macOS, TLS falls back to the system CA bundle (`/etc/ssl/cert.pem`) when the OpenSSL default cert path is missing
+- **Documentation** — README rewritten for CI/CD positioning; added FAQ and moved the full comparison table to [docs/comparison.md](docs/comparison.md)
+- **Packaging** — Updated `shard.yml` description for shard registries
+
 # 5.0.0 (10-06-2026)
 
 - **Breaking (CSV)** — Removed duplicate `latency_fastest_ms` and `latency_slowest_ms` columns; use `latency_min_ms` and `latency_max_ms`
