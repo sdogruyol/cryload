@@ -138,19 +138,45 @@ jobs:
 
       - name: Verify version and run a short benchmark
         run: |
-          BIN="dist/${{ matrix.artifact_name }}/cryload"
+          BIN="$PWD/dist/${{ matrix.artifact_name }}/cryload"
           chmod +x "$BIN"
           "$BIN" --version
-          python3 -m http.server 8765 >/dev/null 2>&1 &
+
+          # Bind explicitly to IPv4 loopback and wait until the port accepts
+          # connections. A fixed sleep is flaky when the runner is slow.
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/cryload-smoke-http.log 2>&1 &
           server_pid=$!
-          sleep 1
-          "$BIN" http://127.0.0.1:8765 -n 1 --no-progress --output-format quiet
-          kill "$server_pid"
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 50); do
+            if curl -sf -o /dev/null --connect-timeout 1 "http://127.0.0.1:8765/"; then
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              echo "HTTP server exited early:" >&2
+              cat /tmp/cryload-smoke-http.log >&2 || true
+              exit 1
+            fi
+            sleep 0.1
+          done
+          curl -sf -o /dev/null --connect-timeout 2 "http://127.0.0.1:8765/" || {
+            echo "HTTP server not ready:" >&2
+            cat /tmp/cryload-smoke-http.log >&2 || true
+            exit 1
+          }
+
+          # macOS 15+ GitHub runners enforce Local Network Privacy; unsigned
+          # binaries can time out on loopback while system tools (curl) work.
+          # Root is exempt from LNP, so use sudo only for the local HTTP probe.
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            sudo "$BIN" http://127.0.0.1:8765 -n 1 -c 1 --timeout 10 --no-progress --output-format quiet
+          else
+            "$BIN" http://127.0.0.1:8765 -n 1 -c 1 --timeout 10 --no-progress --output-format quiet
+          fi
 
       - name: Verify HTTPS works (exercises static OpenSSL config/CA paths)
         run: |
-          BIN="dist/${{ matrix.artifact_name }}/cryload"
-          "$BIN" https://example.com -n 1 --no-progress --output-format quiet
+          BIN="$PWD/dist/${{ matrix.artifact_name }}/cryload"
+          "$BIN" https://example.com -n 1 -c 1 --timeout 10 --no-progress --output-format quiet
 
   release:
     name: Create GitHub Release
