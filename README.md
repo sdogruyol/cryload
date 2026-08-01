@@ -229,4 +229,4 @@ If cryload helps your CI pipeline, consider [sponsoring](https://github.com/spon
 
 ## License
 
-MI
+MIT
