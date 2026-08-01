@@ -2,7 +2,7 @@ name: cryload
 
 description: "HTTP load testing for CI/CD — 115K req/s, single binary, JSON output"
 
-version: 5.0.0
+version: 5.1.0
 
 development_dependencies:
   ameba:
