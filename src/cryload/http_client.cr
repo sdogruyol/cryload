@@ -1,7 +1,18 @@
 require "openssl"
 
+{% if flag?(:darwin) %}
+  lib LibCrypto
+    fun x509_get_default_cert_file = X509_get_default_cert_file : LibC::Char*
+  end
+{% end %}
+
 module Cryload
   DEFAULT_MAX_REDIRECTS = 5
+
+  # macOS system CA bundle, used as a fallback when OpenSSL's compiled-in
+  # default certificate path (e.g. a Homebrew OPENSSLDIR baked into a
+  # statically linked libcrypto) does not exist on the user's machine.
+  MACOS_SYSTEM_CA_BUNDLE = "/etc/ssl/cert.pem"
 
   def self.proxy_request_target(uri : URI) : String
     port = effective_port(uri)
@@ -108,7 +119,20 @@ module Cryload
 
   def self.tls_context_for(uri : URI, insecure : Bool)
     return false unless uri.scheme == "https"
-    insecure ? OpenSSL::SSL::Context::Client.insecure : true
+    insecure ? OpenSSL::SSL::Context::Client.insecure : default_tls_context
+  end
+
+  def self.default_tls_context : OpenSSL::SSL::Context::Client
+    context = OpenSSL::SSL::Context::Client.new
+    {% if flag?(:darwin) %}
+      unless ENV.has_key?("SSL_CERT_FILE") || ENV.has_key?("SSL_CERT_DIR")
+        default_cert_file = String.new(LibCrypto.x509_get_default_cert_file)
+        if !File.exists?(default_cert_file) && File.exists?(MACOS_SYSTEM_CA_BUNDLE)
+          context.ca_certificates = MACOS_SYSTEM_CA_BUNDLE
+        end
+      end
+    {% end %}
+    context
   end
 
   def self.apply_timeouts(client : HTTP::Client, timeout_seconds : Int32?)
