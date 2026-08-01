@@ -6,6 +6,19 @@ require "openssl"
   end
 {% end %}
 
+{% if flag?(:static) || flag?(:static_openssl) %}
+  # A statically linked OpenSSL must not parse the host system's openssl.cnf:
+  # its compiled-in OPENSSLDIR can resolve to a foreign distro's config (e.g.
+  # Fedora's crypto-policies), which aborts every TLS connection with
+  # "digital envelope routines::unknown option". OPENSSL_no_config() is not
+  # enough with OpenSSL 3 (config is still loaded lazily per lib context), so
+  # point OPENSSL_CONF at the null device before any TLS use. Users can still
+  # opt in to a config file by setting OPENSSL_CONF explicitly.
+  # (-Dstatic_openssl marks builds that statically link OpenSSL without
+  # building the whole binary with --static, e.g. the macOS release binary.)
+  ENV["OPENSSL_CONF"] ||= File::NULL
+{% end %}
+
 module Cryload
   DEFAULT_MAX_REDIRECTS = 5
 
@@ -67,7 +80,7 @@ module Cryload
     tls_context = if insecure
                     OpenSSL::SSL::Context::Client.insecure
                   else
-                    OpenSSL::SSL::Context::Client.new
+                    default_tls_context
                   end
     ssl_socket = OpenSSL::SSL::Socket::Client.new(
       socket,
