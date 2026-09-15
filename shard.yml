@@ -1,6 +1,6 @@
 name: cryload
 
-description: "HTTP load testing for CI/CD — multi-core, coordinated-omission corrected, single binary, JSON output"
+description: "HTTP load testing for CI/CD — honest latency, CI thresholds, single binary, JSON output"
 
 version: 6.0.0
 
