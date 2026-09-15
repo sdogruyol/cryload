@@ -1,3 +1,7 @@
+# Unreleased
+
+- **Documentation** — Public descriptions match the README: honest latency and CI thresholds, no stale throughput number. `shard.yml`, the Docker image, `--help`, and the installers now share that positioning.
+
 # 6.0.0 (29-08-2026)
 
 - **Breaking (Concurrency)** — Multi-core load generation is now the default. v5 ran every load fiber on a single thread; v6 sizes the execution context to `min(cpu_count, connections)` OS threads and exposes it as `--workers N`. `--workers 1` reproduces the v5 single-core path; the cpu default respects `CRYSTAL_WORKERS`
