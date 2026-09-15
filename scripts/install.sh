@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD
+# HTTP load testing for CI/CD: honest latency, CI thresholds, JSON/CSV. A modern ab/wrk alternative.
 # Install cryload from GitHub Releases (Linux, macOS, or Git Bash on Windows).
 #
 # Usage:
@@ -24,7 +24,7 @@ VERSION="${VERSION:-}"
 usage() {
   cat <<EOF
 cryload install script
-Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD
+HTTP load testing for CI/CD: honest latency, CI thresholds, JSON/CSV. A modern ab/wrk alternative.
 
 Environment variables:
   REPO          GitHub repository (default: sdogruyol/cryload)

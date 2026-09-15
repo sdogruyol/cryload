@@ -1,4 +1,4 @@
-# Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD
+# HTTP load testing for CI/CD: honest latency, CI thresholds, JSON/CSV. A modern ab/wrk alternative.
 # Install cryload from GitHub Releases (Windows).
 #
 # Usage (PowerShell):
