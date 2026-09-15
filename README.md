@@ -4,7 +4,7 @@
 
 # cryload - HTTP load testing for CI/CD
 
-Cross-platform, single-binary HTTP load testing CLI. A modern alternative to `ab` / `wrk` / `hey`, written in Crystal.
+Cross-platform, single-binary HTTP load testing CLI. Honest latency, CI thresholds, JSON/CSV output. A modern alternative to `ab` / `wrk` / `hey`, written in Crystal.
 
 [![Stars](https://img.shields.io/github/stars/sdogruyol/cryload?style=flat-square&label=%20&color=gold)](https://github.com/sdogruyol/cryload)
 [![CI](https://img.shields.io/github/actions/workflow/status/sdogruyol/cryload/ci.yml?style=flat-square)](https://github.com/sdogruyol/cryload/actions/workflows/ci.yml)
