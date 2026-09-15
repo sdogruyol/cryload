@@ -29,7 +29,7 @@ RUN apk add --no-cache binutils && \
 FROM alpine:3.22
 
 LABEL org.opencontainers.image.title="cryload"
-LABEL org.opencontainers.image.description="Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD"
+LABEL org.opencontainers.image.description="HTTP load testing for CI/CD — honest latency, CI thresholds, single binary, JSON output"
 LABEL org.opencontainers.image.source="https://github.com/sdogruyol/cryload"
 LABEL org.opencontainers.image.licenses="MIT"
 
