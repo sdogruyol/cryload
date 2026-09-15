@@ -52,7 +52,7 @@ module Cryload
     private def prepare_op
       begin
         OptionParser.parse(ARGV) do |opts|
-          opts.banner = "Cross-platform HTTP load testing CLI: a modern ab/wrk alternative with machine-readable reports for CI/CD\n\nUsage: cryload <url> [options]"
+          opts.banner = "HTTP load testing for CI/CD: honest latency, CI thresholds, JSON/CSV. A modern ab/wrk alternative.\n\nUsage: cryload <url> [options]"
 
           opts.on("-n NUMBERS", "--numbers NUMBERS", "Number of requests to make") do |v|
             @options.numbers = parse_int(v, "-n/--numbers")

@@ -196,6 +196,8 @@ describe "Cryload E2E" do
     process = run_cryload(["-h"], output: output)
 
     process.exit_code.should eq(0)
+    output.to_s.should contain("HTTP load testing for CI/CD")
+    output.to_s.should contain("honest latency")
     output.to_s.should contain("ab/wrk alternative")
     output.to_s.should contain("Usage:")
     output.to_s.should contain("<url>")
