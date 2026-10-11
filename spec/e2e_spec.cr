@@ -1319,6 +1319,19 @@ describe "Cryload E2E" do
     end
   end
 
+  it "sends proxy credentials on plain-HTTP requests through --proxy" do
+    server, proxy_port, request_lines, lines_mutex = MockProxy.start
+
+    code, _, _ = E2E.text_run(["http://127.0.0.1:19999", "--proxy", "http://user:pass@127.0.0.1:#{proxy_port}", "-n", "2"])
+
+    server.close
+
+    code.should eq(0)
+    lines_mutex.synchronize do
+      request_lines.count("Proxy-Authorization: Basic #{Base64.strict_encode("user:pass")}").should eq(2)
+    end
+  end
+
   # v6: multi-core load generation -----------------------------------------
 
   it "reports the requested --workers count" do

@@ -63,6 +63,12 @@ module Cryload
     proxy_host = proxy.host || raise ArgumentError.new("Proxy host is required")
     proxy_port = effective_port(proxy)
     client = PhasedClient.new proxy_host, port: proxy_port, tls: tls_context_for(proxy, insecure)
+    # Plain-HTTP targets go to the proxy as absolute-form requests, so the
+    # credentials ride on every request instead of on a CONNECT preamble. An
+    # explicit -H Proxy-Authorization wins.
+    if auth = proxy_authorization(proxy)
+      client.before_request { |request| request.headers["Proxy-Authorization"] ||= auth }
+    end
     timeouts.apply(client)
     client
   end

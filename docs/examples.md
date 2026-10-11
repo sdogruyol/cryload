@@ -161,7 +161,7 @@ Runs 10 seconds of untimed traffic first, then starts measuring. This keeps JIT 
 cryload https://api.example.com/v1/items -n 1000 --proxy http://proxy.internal:8080
 ```
 
-Works for HTTP and HTTPS targets; HTTPS uses `CONNECT` tunneling through the proxy. Proxy-layer failures report as the `proxy_error` category.
+Works for HTTP and HTTPS targets; HTTPS uses `CONNECT` tunneling through the proxy. Credentials in the proxy URL (`http://user:pass@proxy.internal:8080`) are sent as `Proxy-Authorization`. Proxy-layer failures report as the `proxy_error` category.
 
 ## Self-signed / internal TLS
 
