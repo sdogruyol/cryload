@@ -9,6 +9,7 @@
 - **Accuracy** — Transfer metrics count response bodies as received. cryload still sends `Accept-Encoding: gzip, deflate` by default, but no longer inflates the body, so `transfer.*` and "Total data" report compressed bytes for a compressing target, and the generator spends no CPU on zlib. An explicit `-H Accept-Encoding` still wins
 - **Accuracy** — The process exits with the exact code the report printed. The gates used to be evaluated again after the report was written, and in request-count mode the measurement window stayed open meanwhile, so a slow stdout reader could turn a printed `verdict.exit_code: 0` into exit 1 under `--min-rps`. The window now closes when the last request is merged
 - **Accuracy** — Request-count workers flush their stats at least once a second, like duration workers. A worker whose `-n` share was below 250 requests stayed invisible until it finished, so progress and a Ctrl-C report of a slow run showed 0 requests
+- **Toolchain** — Release binaries, the Docker image and CI are built with Crystal 1.21.1 (was 1.21.0). It carries crystal-lang/crystal#17436, which fixes non-blocking connect on macOS 26.7: a refused connection was treated as established, so a `localhost` that resolves to `::1` first never fell back to `127.0.0.1`. The minimum Crystal for building from source stays 1.21.0
 
 # 6.0.0 (29-08-2026)
 

@@ -1,7 +1,7 @@
 ##= BUILDER =##
 # Same toolchain and build sequence as the Linux release binaries in
 # .github/workflows/release.yml: fully static (musl + static OpenSSL).
-FROM crystallang/crystal:1.21.0-alpine AS builder
+FROM crystallang/crystal:1.21.1-alpine AS builder
 WORKDIR /cryload
 
 # src/cryload/version.cr resolves VERSION at compile time by running

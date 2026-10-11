@@ -15,7 +15,7 @@ jobs:
 
       - uses: crystal-lang/install-crystal@v1
         with:
-          crystal: "1.21.0"
+          crystal: "1.21.1"
 
       - name: Install dependencies
         run: shards install
@@ -38,11 +38,11 @@ jobs:
           # musl Node.js for arm64 (actions/runner#3665), so actions/checkout
           # cannot execute inside an Alpine job container on the arm64 runner.
           - os: ubuntu-latest
-            build_container: crystallang/crystal:1.21.0-alpine
+            build_container: crystallang/crystal:1.21.1-alpine
             artifact_name: cryload-linux
             binary_path: bin/cryload
           - os: ubuntu-24.04-arm
-            build_container: crystallang/crystal:1.21.0-alpine
+            build_container: crystallang/crystal:1.21.1-alpine
             artifact_name: cryload-linux-arm64
             binary_path: bin/cryload
           - os: macos-latest
@@ -65,7 +65,7 @@ jobs:
       - uses: crystal-lang/install-crystal@v1
         if: ${{ !matrix.build_container }}
         with:
-          crystal: "1.21.0"
+          crystal: "1.21.1"
 
       - name: Install dependencies
         if: ${{ !matrix.build_container }}
