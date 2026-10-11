@@ -1,6 +1,7 @@
 require "./spec_helper"
 require "./support/test_tls"
 require "./support/mock_proxy"
+require "./support/connect_blackhole"
 require "./support/test_server"
 require "http/server"
 require "json"
@@ -48,6 +49,33 @@ module E2E
     error = IO::Memory.new
     process = run_cryload(args, output: output, error: error)
     {process.exit_code, output.to_s, error.to_s}
+  end
+
+  # For runs that used to hang: a regression must fail the spec instead of
+  # stalling the suite until the CI job is killed.
+  def bounded_json_run(args : Array(String), limit : Time::Span = 15.seconds) : Tuple(Int32, JSON::Any)
+    output = IO::Memory.new
+    process = Process.new(
+      CRYLOAD_BIN, args,
+      input: Process::Redirect::Close,
+      output: output,
+      error: Process::Redirect::Close,
+      chdir: PROJECT_ROOT,
+    )
+    finished = Channel(Process::Status).new(1)
+    spawn { finished.send process.wait }
+
+    select
+    when status = finished.receive
+      {status.exit_code, JSON.parse(output.to_s)}
+    when timeout(limit)
+      process.terminate(graceful: false)
+      fail "cryload did not finish within #{limit}: #{args.join(' ')}"
+    end
+  end
+
+  def first_transport_error_category(report : JSON::Any) : String
+    report["status"]["transport_errors"][0]["category"].as_s
   end
 
   # Lets a run gather `warmup` worth of samples, signals it, then collects the
@@ -339,6 +367,15 @@ describe "Cryload E2E" do
     output.to_s.should contain("Error Distribution")
     output.to_s.should contain("[connect_refused] 5 errors (100.0%)")
     process.exit_code.should eq(3)
+  end
+
+  it "reports a connect that exceeds --timeout as connect_timeout" do
+    ConnectBlackhole.open do |port|
+      code, report = E2E.bounded_json_run(["http://127.0.0.1:#{port}", "-n", "2", "-c", "1", "--timeout", "300ms", "--json"])
+
+      code.should eq(3)
+      E2E.first_transport_error_category(report).should eq("connect_timeout")
+    end
   end
 
   it "runs for specified duration with -d" do

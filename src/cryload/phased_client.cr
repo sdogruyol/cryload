@@ -93,6 +93,9 @@ module Cryload
         begin
           socket.connect(addrinfo, timeout: @connect_timeout)
           return socket
+        rescue ex : IO::TimeoutError
+          socket.close
+          last_error = ConnectTimeoutError.new("Connect to #{@host}:#{@port} timed out", cause: ex)
         rescue ex
           socket.close
           last_error = ex

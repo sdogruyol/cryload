@@ -2,6 +2,7 @@
 
 - **Documentation** — Public descriptions match the README: honest latency and CI thresholds, no stale throughput number. `shard.yml`, the Docker image, `--help`, and the installers now share that positioning.
 - **Reporting** — A refused connection is reported as `connect_refused` again when cryload is built with Crystal 1.21.1+. Crystal 1.21.1 (crystal-lang/crystal#17436) swapped the real connect error for a stale errno (`connect: Operation now in progress`), so refusals showed up as `connect_failed`. cryload patches the Unix event loops' `connect` until upstream ships the fix
+- **Reporting** — A connect that exceeds `--timeout` is reported as `connect_timeout`. The stdlib raises a bare `IO::TimeoutError` for it, so it used to land in `read_timeout` and `connect_timeout` was never emitted
 - **CLI** — Numeric flags reject `nan`, `inf` and out-of-range values with a config error (exit 2). `--rate inf`, `-d inf` or `--rate 1e-10` used to crash with `OverflowError`, and `--max-p99 nan` crashed with `JSON::Error` after the whole run, all exiting 1 — the threshold-breach code. `--rate` now needs at least `1e-9` requests/sec, and huge finite limits (`--max-p99 1e300`) render instead of overflowing
 
 # 6.0.0 (29-08-2026)

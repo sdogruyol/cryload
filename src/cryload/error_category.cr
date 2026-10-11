@@ -8,6 +8,12 @@ module Cryload
     end
   end
 
+  # Raised when TCP connect exceeds `--timeout`. The stdlib event loops report
+  # that as a bare `IO::TimeoutError("Connect timed out")`, which is otherwise
+  # indistinguishable from a read timeout.
+  class ConnectTimeoutError < IO::TimeoutError
+  end
+
   # Maps transport exceptions onto a fixed vocabulary. v5 reported Crystal
   # exception class names, which made the JSON report a hostage of stdlib
   # refactors; these names are part of the documented schema instead.
@@ -39,6 +45,7 @@ module Cryload
       when RequestTimeoutError      then REQUEST_TIMEOUT
       when Socket::Addrinfo::Error  then DNS_FAILURE
       when Socket::ConnectError     then connect_category(ex.message)
+      when ConnectTimeoutError      then CONNECT_TIMEOUT
       when OpenSSL::SSL::Error      then TLS_ERROR
       when OpenSSL::Error           then TLS_ERROR
       when IO::EOFError             then CONNECTION_CLOSED
