@@ -1,6 +1,7 @@
 require "./spec_helper"
 require "./support/test_tls"
 require "./support/mock_proxy"
+require "./support/mock_tunnel_proxy"
 require "./support/connect_blackhole"
 require "./support/test_server"
 require "http/server"
@@ -1330,6 +1331,61 @@ describe "Cryload E2E" do
     lines_mutex.synchronize do
       request_lines.count("Proxy-Authorization: Basic #{Base64.strict_encode("user:pass")}").should eq(2)
     end
+  end
+
+  it "reconnects an HTTPS tunnel after the target closes the connection" do
+    target, target_port = TestTls.start do |context|
+      context.response.headers["Connection"] = "close"
+      context.response.print "tunnelled"
+    end
+    proxy, proxy_port, lines, lines_mutex = MockTunnelProxy.start
+
+    code, report = E2E.bounded_json_run([
+      "https://127.0.0.1:#{target_port}", "--proxy", "http://127.0.0.1:#{proxy_port}",
+      "--insecure", "-n", "4", "-c", "1", "--json",
+    ])
+
+    proxy.close
+    target.close
+
+    code.should eq(0)
+    report["status"]["successful_count"].as_i.should eq(4)
+    report["status"]["transport_errors"].as_a.should be_empty
+    lines_mutex.synchronize do
+      lines.count(&.starts_with?("CONNECT 127.0.0.1:#{target_port} ")).should eq(4)
+    end
+  end
+
+  it "tunnels through an https:// proxy" do
+    target, target_port = TestTls.start do |context|
+      context.response.print "tunnelled"
+    end
+    proxy, proxy_port, _, _ = MockTunnelProxy.start(tls: TestTls.server_context)
+
+    code, report = E2E.bounded_json_run([
+      "https://127.0.0.1:#{target_port}", "--proxy", "https://127.0.0.1:#{proxy_port}",
+      "--insecure", "-n", "2", "-c", "1", "--json",
+    ])
+
+    proxy.close
+    target.close
+
+    code.should eq(0)
+    report["status"]["successful_count"].as_i.should eq(2)
+  end
+
+  it "applies --timeout to a proxy that never answers CONNECT" do
+    proxy, proxy_port, _, _ = MockTunnelProxy.start(respond: false)
+
+    code, report = E2E.bounded_json_run([
+      "https://127.0.0.1:1", "--proxy", "http://127.0.0.1:#{proxy_port}",
+      "--timeout", "300ms", "-n", "1", "--json",
+    ])
+
+    proxy.close
+
+    code.should eq(3)
+    E2E.first_transport_error_category(report).should eq("read_timeout")
   end
 
   # v6: multi-core load generation -----------------------------------------

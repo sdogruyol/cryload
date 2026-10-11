@@ -75,41 +75,9 @@ module Cryload
 
   def self.create_https_proxy_client(uri, proxy : URI, timeouts : Timeouts = Timeouts.new, insecure : Bool = false) : PhasedClient
     host = uri.host || raise ArgumentError.new("URI host is required")
-    port = effective_port(uri)
-    proxy_host = proxy.host || raise ArgumentError.new("Proxy host is required")
-    proxy_port = effective_port(proxy)
-
-    connect_start = Time.instant
-    # Time::Span, not a bare number: the Windows IOCP event loop only accepts a
-    # span, and the numeric overload type-checks on Unix but not there.
-    socket = TCPSocket.new(proxy_host, proxy_port, timeouts.timeout, timeouts.timeout)
-    socket << connect_request(uri, port, proxy)
-
-    status_code = read_proxy_connect_status(socket)
-    unless status_code == 200
-      socket.close
-      raise IO::Error.new("Proxy CONNECT failed with status #{status_code}")
-    end
-    connect_ms = elapsed_ms(connect_start)
-
-    tls_context = if insecure
-                    OpenSSL::SSL::Context::Client.insecure
-                  else
-                    default_tls_context
-                  end
-
-    tls_start = Time.instant
-    ssl_socket = OpenSSL::SSL::Socket::Client.new(
-      socket,
-      context: tls_context,
-      sync_close: true,
-      hostname: host,
-    )
-    tls_ms = elapsed_ms(tls_start)
-
-    # DNS is folded into the CONNECT phase here: the tunnel is established by
-    # the proxy, so the client never resolves the target host itself.
-    client = PhasedClient.new(ssl_socket, host, port, 0.0, connect_ms, tls_ms)
+    proxy_tls = proxy.scheme == "https" ? client_tls_context(insecure) : nil
+    tunnel = PhasedClient::Tunnel.new(proxy, proxy_tls)
+    client = PhasedClient.new host, port: effective_port(uri), tls: client_tls_context(insecure), tunnel: tunnel
     timeouts.apply(client)
     client
   end
@@ -131,17 +99,17 @@ module Cryload
     status_code
   end
 
-  def self.connect_request(uri : URI, port : Int32, proxy : URI) : String
-    host = uri.host || raise ArgumentError.new("URI host is required")
-    request = String.build do |io|
-      io << "CONNECT #{host}:#{port} HTTP/1.1\r\n"
-      io << "Host: #{host}:#{port}\r\n"
+  # `host` is the URI host as written, so an IPv6 literal keeps the brackets
+  # the CONNECT authority-form requires.
+  def self.connect_request(host : String, port : Int32, proxy : URI) : String
+    String.build do |io|
+      io << "CONNECT " << host << ':' << port << " HTTP/1.1\r\n"
+      io << "Host: " << host << ':' << port << "\r\n"
       if auth = proxy_authorization(proxy)
-        io << "Proxy-Authorization: #{auth}\r\n"
+        io << "Proxy-Authorization: " << auth << "\r\n"
       end
       io << "\r\n"
     end
-    request
   end
 
   def self.proxy_authorization(proxy : URI) : String?
@@ -152,6 +120,10 @@ module Cryload
 
   def self.tls_context_for(uri : URI, insecure : Bool)
     return false unless uri.scheme == "https"
+    client_tls_context(insecure)
+  end
+
+  def self.client_tls_context(insecure : Bool) : OpenSSL::SSL::Context::Client
     insecure ? OpenSSL::SSL::Context::Client.insecure : default_tls_context
   end
 
