@@ -4,6 +4,7 @@ require "option_parser"
 require "json"
 require "base64"
 
+require "./cryload/stdlib_patches"
 require "./cryload/version"
 require "./cryload/duration"
 require "./cryload/fd_limit"
