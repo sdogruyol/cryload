@@ -140,7 +140,7 @@ module Cryload
           break unless in_window
 
           perform_request worker, batch, scheduled_at
-          if batch.total_request_count >= BATCH_FLUSH_SIZE || (Time.instant - last_flush) >= BATCH_FLUSH_INTERVAL
+          if flush_due?(batch, last_flush)
             batch = flush_batch stats_channel, batch
             last_flush = Time.instant
           end
@@ -156,17 +156,28 @@ module Cryload
       spawn do
         worker = Worker.new(@http_headers)
         batch = Cryload.stats.new_batch
+        last_flush = Time.instant
 
         requests_per_worker(worker_index, total_workers).times do
           scheduled_at, _ = acquire_slot(rate_limiter, nil)
           perform_request worker, batch, scheduled_at
-          batch = flush_batch stats_channel, batch if batch.total_request_count >= BATCH_FLUSH_SIZE
+          if flush_due?(batch, last_flush)
+            batch = flush_batch stats_channel, batch
+            last_flush = Time.instant
+          end
         end
 
         worker.close
         flush_batch stats_channel, batch
         done_channel.send nil
       end
+    end
+
+    # Progress and a signal-time report only see merged batches, so a worker
+    # whose whole quota is below BATCH_FLUSH_SIZE must still flush on a clock,
+    # or a slow `-n` run reports zero requests until it ends.
+    private def flush_due?(batch : Stats::Batch, last_flush : Time::Instant) : Bool
+      batch.total_request_count >= BATCH_FLUSH_SIZE || (Time.instant - last_flush) >= BATCH_FLUSH_INTERVAL
     end
 
     # Reserves a schedule slot. The returned instant is what corrected latency

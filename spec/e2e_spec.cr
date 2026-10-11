@@ -1971,6 +1971,25 @@ describe "Cryload E2E" do
     end
   end
 
+  it "reports requests from an interrupted -n run whose worker quotas are below a batch" do
+    server, port = TestServer.start do |context|
+      context.response.print "OK"
+    end
+
+    # Each worker's quota (100) never reaches BATCH_FLUSH_SIZE, so only a timed
+    # flush gets these requests into the report before the run ends.
+    code, report = E2E.signal_run(
+      ["http://127.0.0.1:#{port}", "-n", "200", "-c", "2", "-q", "40", "--json"],
+      Signal::INT,
+      warmup: 2.seconds,
+    )
+
+    server.close
+
+    code.should eq(130)
+    JSON.parse(report)["summary"]["requests"].as_i.should be > 0
+  end
+
   it "matches verdict.exit_code to the process exit code" do
     server, port = TestServer.start do |context|
       context.response.status_code = 200
