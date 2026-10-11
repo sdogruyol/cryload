@@ -788,6 +788,31 @@ describe "Cryload E2E" do
     process.exit_code.should eq(2)
   end
 
+  it "counts compressed response bodies as wire bytes, not inflated bytes" do
+    body = "a" * 10_000
+    encodings = [] of String
+    encodings_mutex = Mutex.new
+    server = HTTP::Server.new([HTTP::CompressHandler.new]) do |context|
+      encodings_mutex.synchronize { encodings << context.request.headers["Accept-Encoding"]?.to_s }
+      context.response.print body
+    end
+    port = server.bind_unused_port.port
+    spawn { server.listen }
+
+    code, compressed = E2E.json_run(["http://127.0.0.1:#{port}", "-n", "3", "-c", "1", "--json"])
+    identity_code, identity = E2E.json_run(["http://127.0.0.1:#{port}", "-n", "3", "-c", "1", "-H", "Accept-Encoding: identity", "--json"])
+
+    server.close
+
+    code.should eq(0)
+    identity_code.should eq(0)
+    encodings_mutex.synchronize { encodings.first(3).should eq(["gzip, deflate"] * 3) }
+    wire_bytes = compressed["transfer"]["total_bytes"].as_i
+    wire_bytes.should be > 0
+    wire_bytes.should be < body.bytesize
+    identity["transfer"]["total_bytes"].as_i.should eq(body.bytesize * 3)
+  end
+
   it "outputs json with --json including p95 and p99" do
     response_body = "OK"
     server = HTTP::Server.new do |context|

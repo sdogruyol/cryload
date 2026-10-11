@@ -71,7 +71,7 @@ A non-zero `skipped_requests` means the reported uncorrected latency is optimist
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `total_bytes` | integer | Sum of response body bytes |
+| `total_bytes` | integer | Sum of response body bytes as received; a compressed body is counted compressed, not inflated |
 | `size_per_request_bytes` | number | Average bytes per HTTP response |
 | `bytes_per_second` | number | Throughput in bytes/sec |
 

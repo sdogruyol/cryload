@@ -29,6 +29,14 @@ module Cryload
       @last_connect_ms = 0.0
       @last_tls_ms = nil
       super(host, port, tls)
+
+      # The stdlib's implicit compression advertises gzip and then inflates the
+      # body, so Transfer counted decompressed bytes and the generator spent CPU
+      # on zlib for bodies it discards. Sending the same header itself keeps the
+      # target's behaviour unchanged while the body stays as it came off the
+      # wire. An explicit -H Accept-Encoding wins.
+      self.compress = false
+      before_request { |request| request.headers["Accept-Encoding"] ||= "gzip, deflate" }
     end
 
     private def io
