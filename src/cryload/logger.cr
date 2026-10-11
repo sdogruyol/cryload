@@ -70,7 +70,9 @@ module Cryload
 
     # Logs the final stats. `signal_code` is set when the run was cut short by a
     # signal, so the verdict says why instead of claiming a clean finish.
-    def self.log_final(signal_code : ExitCode? = nil)
+    # Returns the exit code the report announced, so the process exits with
+    # exactly the verdict it printed rather than re-evaluating the gates.
+    def self.log_final(signal_code : ExitCode? = nil) : ExitCode?
       stats = Cryload.stats?
       return unless stats
 
@@ -82,17 +84,13 @@ module Cryload
 
       if stats.json_output?
         puts report.to_json
-        return
-      end
-
-      if stats.csv_output?
+      elsif stats.csv_output?
         puts report.to_csv
-        return
+      elsif !stats.quiet_output?
+        report.print_text
       end
 
-      return if stats.quiet_output?
-
-      report.print_text
+      report.exit_code
     end
 
     # A single consistent snapshot of the run. Every number in one report comes

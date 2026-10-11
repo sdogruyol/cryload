@@ -7,6 +7,7 @@
 - **Proxy** — HTTPS targets through `--proxy` now honour `--timeout` on the tunnel (CONNECT reply, TLS handshake and every request; a stalled proxy used to block the worker forever), reconnect after the target closes a keep-alive connection instead of failing every later request as `other`, close the socket when CONNECT or the handshake fails, and support `https://` proxies and IPv6 proxy literals. Tunnel phases: `dns`/`connect` describe the proxy hop (`connect` includes the CONNECT exchange), `tls` the handshake with the target
 - **Proxy** — Plain-HTTP targets through `--proxy http://user:pass@...` now send `Proxy-Authorization`; only the CONNECT tunnel used to carry the credentials
 - **Accuracy** — Transfer metrics count response bodies as received. cryload still sends `Accept-Encoding: gzip, deflate` by default, but no longer inflates the body, so `transfer.*` and "Total data" report compressed bytes for a compressing target, and the generator spends no CPU on zlib. An explicit `-H Accept-Encoding` still wins
+- **Accuracy** — The process exits with the exact code the report printed. The gates used to be evaluated again after the report was written, and in request-count mode the measurement window stayed open meanwhile, so a slow stdout reader could turn a printed `verdict.exit_code: 0` into exit 1 under `--min-rps`. The window now closes when the last request is merged
 
 # 6.0.0 (29-08-2026)
 

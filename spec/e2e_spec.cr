@@ -1939,6 +1939,38 @@ describe "Cryload E2E" do
 
   # v6: verdict and signals -------------------------------------------------
 
+  it "exits with the printed verdict even when the report drains slowly" do
+    server, port = TestServer.start do |context|
+      context.response.print "OK"
+    end
+
+    # 800 per-URL entries push the JSON report past the pipe buffer, so writing
+    # it blocks until this spec reads. The gates must not be re-evaluated over
+    # that wait: 800 requests over ~3 s would fall below --min-rps 500.
+    urls = (1..800).map { |i| "http://127.0.0.1:#{port}/u#{i}" }
+    E2E.with_urls_file(urls) do |path|
+      reader, writer = IO.pipe
+      process = Process.new(
+        CRYLOAD_BIN, ["--urls-file", path, "-n", "800", "-c", "4", "--min-rps", "500", "--json"],
+        input: Process::Redirect::Close,
+        output: writer,
+        error: Process::Redirect::Close,
+        chdir: PROJECT_ROOT,
+      )
+      writer.close
+      sleep 3.seconds
+      report = JSON.parse(reader.gets_to_end)
+      reader.close
+      code = process.wait.exit_code
+
+      server.close
+
+      report["verdict"]["exit_code"].as_i.should eq(0)
+      report["summary"]["elapsed_seconds"].as_f.should be < 2.0
+      code.should eq(0)
+    end
+  end
+
   it "matches verdict.exit_code to the process exit code" do
     server, port = TestServer.start do |context|
       context.response.status_code = 200

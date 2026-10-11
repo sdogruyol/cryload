@@ -5,11 +5,14 @@ module Cryload
     # under multiple threads the two writers could interleave mid-line.
     @@reported = Atomic(Int32).new(0)
 
+    # The window is frozen before the report is built: otherwise elapsed time,
+    # and with it every rps-based gate, kept growing while the report was being
+    # rendered and written.
     def self.finish : NoReturn
       claim_report
+      Cryload.stats.mark_benchmark_end
       Logger.log_progress
-      Logger.log_final
-      exit Cryload.stats.exit_code.value
+      exit (Logger.log_final || ExitCode::Ok).value
     end
 
     # A run cut short still reports, and a breached threshold still outranks the
@@ -27,10 +30,7 @@ module Cryload
       claim_report
       stats.mark_benchmark_end
       Logger.log_progress
-      Logger.log_final(signal_code)
-
-      run_code = stats.exit_code
-      exit run_code.threshold_breach? ? run_code.value : signal_code.value
+      exit (Logger.log_final(signal_code) || signal_code).value
     end
 
     def self.exit_code_for(reason : Process::ExitReason) : ExitCode
