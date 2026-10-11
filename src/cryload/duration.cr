@@ -20,7 +20,7 @@ module Cryload
 
       if plain = text.to_f64?
         raise ArgumentError.new(message(raw, flag)) if plain < 0
-        return span(plain)
+        return span(plain, raw, flag)
       end
 
       total_seconds = 0.0
@@ -35,7 +35,7 @@ module Cryload
       end
 
       raise ArgumentError.new(message(raw, flag)) unless consumed == text.size && consumed > 0
-      span(total_seconds)
+      span(total_seconds, raw, flag)
     end
 
     def format(span : Time::Span) : String
@@ -43,7 +43,7 @@ module Cryload
       return "0s" if total_ms <= 0
       return "#{trim(total_ms)}ms" if total_ms < 1000
 
-      hours = span.total_hours.to_i
+      hours = span.total_hours.to_i64
       minutes = span.minutes
       seconds = span.total_seconds - (hours * 3600) - (minutes * 60)
 
@@ -54,8 +54,14 @@ module Cryload
       end
     end
 
-    private def span(total_seconds : Float64) : Time::Span
-      Time::Span.new(nanoseconds: (total_seconds * 1_000_000_000.0).round.to_i64)
+    # `Time::Span` holds Int64 nanoseconds (~292 years); NaN, infinity and
+    # anything beyond that would otherwise surface as an OverflowError.
+    private def span(total_seconds : Float64, raw : String, flag : String) : Time::Span
+      nanoseconds = total_seconds * 1_000_000_000.0
+      unless nanoseconds.finite? && nanoseconds < Int64::MAX.to_f
+        raise ArgumentError.new(message(raw, flag))
+      end
+      Time::Span.new(nanoseconds: nanoseconds.round.to_i64)
     end
 
     private def trim(value : Float64) : String

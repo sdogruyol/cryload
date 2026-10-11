@@ -105,6 +105,14 @@ describe Cryload::Duration do
         Cryload::Duration.parse("5 s", "-d")
       end
     end
+
+    it "rejects values a Time::Span cannot hold instead of overflowing" do
+      ["inf", "nan", "1e10", "99999999999h"].each do |raw|
+        expect_raises(ArgumentError, /Invalid duration '#{Regex.escape(raw)}' for -d/) do
+          Cryload::Duration.parse(raw, "-d")
+        end
+      end
+    end
   end
 
   describe ".format" do
@@ -125,6 +133,10 @@ describe Cryload::Duration do
         formatted = Cryload::Duration.format(span)
         Cryload::Duration.parse(formatted, "-d").should eq(span)
       end
+    end
+
+    it "formats spans whose hour count overflows Int32 seconds" do
+      Cryload::Duration.format(600_000.hours).should eq("600000h")
     end
   end
 end

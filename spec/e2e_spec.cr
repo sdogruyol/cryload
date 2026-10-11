@@ -694,6 +694,42 @@ describe "Cryload E2E" do
     process.exit_code.should eq(2)
   end
 
+  it "exits with a config error instead of crashing on non-finite or out-of-range numbers" do
+    [
+      {["--rate", "inf"], "Invalid value 'inf' for -q/--rate"},
+      {["--rate", "nan"], "Invalid value 'nan' for -q/--rate"},
+      {["--rate", "1e-10"], "Rate must be at least"},
+      {["--max-p99", "nan"], "Invalid value 'nan' for --max-p99"},
+      {["--min-rps", "inf"], "Invalid value 'inf' for --min-rps"},
+      {["--max-fail-rate", "nan"], "Invalid value 'nan' for --max-fail-rate"},
+      {["--url-threshold", "/ max-p99 inf"], "Invalid --url-threshold value 'inf'"},
+      {["-d", "inf"], "Invalid duration 'inf' for -d"},
+      {["--timeout", "1e10"], "Invalid duration '1e10' for --timeout"},
+      {["--warmup", "99999999999h"], "Invalid duration '99999999999h' for --warmup"},
+    ].each do |flag_args, message|
+      code, output, error = E2E.text_run(["http://localhost:8080", "-n", "5"] + flag_args)
+
+      combined = output + error
+      combined.should_not contain("Unhandled exception")
+      combined.should contain(message)
+      code.should eq(2)
+    end
+  end
+
+  it "renders a huge but finite threshold limit in the report" do
+    server, port = TestServer.start do |context|
+      context.response.print "OK"
+    end
+
+    code, output, error = E2E.text_run(["http://127.0.0.1:#{port}", "-n", "3", "--max-p99", "1e300", "--rate", "1e19"])
+
+    server.close
+
+    (output + error).should_not contain("Unhandled exception")
+    output.should contain("1.0e+300")
+    code.should eq(0)
+  end
+
   it "exits with a config error on invalid output format" do
     output = IO::Memory.new
     error = IO::Memory.new

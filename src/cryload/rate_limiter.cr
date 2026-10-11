@@ -10,6 +10,10 @@ module Cryload
   # percentiles. Keeping the schedule monotonic turns that backlog into
   # measurable send delay, which is what corrected latency is computed from.
   class RateLimiter
+    # One request per ~32 years. Anything slower has a slot interval that no
+    # longer fits the Int64 nanosecond schedule.
+    MIN_RATE = 1e-9
+
     getter interval_ns : Int64
     getter reference : Time::Instant
 

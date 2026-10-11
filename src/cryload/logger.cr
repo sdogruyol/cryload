@@ -687,8 +687,10 @@ module Cryload
       trim_number rate
     end
 
+    # Integral values print without a fraction only while they fit an Int64;
+    # a finite but huge limit (`--max-p99 1e300`) would overflow `to_i64`.
     def self.trim_number(value : Float64) : String
-      value == value.trunc ? value.to_i64.to_s : value.round(4).to_s
+      value == value.trunc && value.abs < 1e15 ? value.to_i64.to_s : value.round(4).to_s
     end
 
     def self.print_histogram(histogram_bins)

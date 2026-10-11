@@ -239,8 +239,12 @@ module Cryload
       value.to_i? || raise OptionParser::Exception.new("Invalid value '#{value}' for #{flag}: expected an integer")
     end
 
+    # `String#to_f?` accepts "nan" and "inf"; neither is a usable rate or limit,
+    # and both crash the report (JSON cannot encode them) after the whole run.
     private def parse_float(value : String, flag : String) : Float64
-      value.to_f? || raise OptionParser::Exception.new("Invalid value '#{value}' for #{flag}: expected a number")
+      number = value.to_f?
+      return number if number && number.finite?
+      raise OptionParser::Exception.new("Invalid value '#{value}' for #{flag}: expected a number")
     end
 
     private def parse_duration(value : String, flag : String) : Time::Span

@@ -241,6 +241,10 @@ module Cryload
             error "Rate must be greater than 0 requests/sec."
             return false
           end
+          if rate < RateLimiter::MIN_RATE
+            error "Rate must be at least #{RateLimiter::MIN_RATE} requests/sec."
+            return false
+          end
         end
 
         if options.fail_on_rate_miss? && options.rate.nil?
@@ -388,7 +392,7 @@ module Cryload
           end
 
           limit = raw_limit.to_f?
-          unless limit && limit > 0.0
+          unless limit && limit.finite? && limit > 0.0
             raise ArgumentError.new("Invalid --url-threshold value '#{raw_limit}' for #{metric_name}: expected a positive number.")
           end
 
