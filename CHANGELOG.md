@@ -1,4 +1,4 @@
-# Unreleased
+# 6.1.0 (11-10-2026)
 
 - **Documentation** — Public descriptions match the README: honest latency and CI thresholds, no stale throughput number. `shard.yml`, the Docker image, `--help`, and the installers now share that positioning.
 - **Reporting** — A refused connection is reported as `connect_refused` again when cryload is built with Crystal 1.21.1+. Crystal 1.21.1 (crystal-lang/crystal#17436) swapped the real connect error for a stale errno (`connect: Operation now in progress`), so refusals showed up as `connect_failed`. cryload patches the Unix event loops' `connect` until upstream ships the fix

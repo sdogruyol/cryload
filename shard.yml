@@ -2,7 +2,7 @@ name: cryload
 
 description: "HTTP load testing for CI/CD — honest latency, CI thresholds, single binary, JSON output"
 
-version: 6.0.0
+version: 6.1.0
 
 development_dependencies:
   ameba:
